@@ -1,0 +1,229 @@
+openapi: 3.1.0
+info:
+  title: Ruammit API
+  version: 0.1.0
+  description: >
+    Backend for the Ruammit travel social app. This is a starter contract —
+    extend it module by module (auth, feed, location, chat). It doubles as the
+    source for generating a Dart client for the Flutter app.
+servers:
+  - url: http://localhost:8080
+    description: Local development
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      operationId: health
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+
+  /api/v1/auth/register:
+    post:
+      summary: Create a pending account and send an OTP
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contact_type, contact, password]
+              properties:
+                contact_type: { type: string, enum: [email, phone] }
+                contact: { type: string, example: you@example.com }
+                password: { type: string, minLength: 6 }
+      responses:
+        "201":
+          description: Code sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OtpChallenge" }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /api/v1/auth/verify-otp:
+    post:
+      summary: Verify an OTP and activate the account
+      operationId: verifyOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contact_type, contact, code]
+              properties:
+                contact_type: { type: string, enum: [email, phone] }
+                contact: { type: string }
+                code: { type: string, minLength: 6, maxLength: 6 }
+      responses:
+        "200":
+          description: Verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /api/v1/auth/resend-otp:
+    post:
+      summary: Resend a fresh OTP (60s cooldown)
+      operationId: resendOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contact_type, contact]
+              properties:
+                contact_type: { type: string, enum: [email, phone] }
+                contact: { type: string }
+      responses:
+        "200":
+          description: New code sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OtpChallenge" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /api/v1/auth/login:
+    post:
+      summary: Log in with credentials; returns an access + refresh token pair
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contact_type, contact, password]
+              properties:
+                contact_type: { type: string, enum: [email, phone] }
+                contact: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenPair" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /api/v1/auth/refresh:
+    post:
+      summary: Exchange a refresh token for a new pair (rotates the refresh token)
+      operationId: refresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "200":
+          description: New token pair
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenPair" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /api/v1/auth/logout:
+    post:
+      summary: Revoke a refresh token
+      operationId: logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "204": { description: Revoked }
+
+  /api/v1/auth/me:
+    get:
+      summary: Return the authenticated caller's id
+      operationId: me
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+        "401": { $ref: "#/components/responses/Error" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    OtpChallenge:
+      type: object
+      properties:
+        message: { type: string }
+        contact: { type: string, description: Normalized contact }
+        expires_at: { type: string, format: date-time }
+        debug_code:
+          type: string
+          description: DEV ONLY — the OTP, omitted in production
+    TokenPair:
+      type: object
+      properties:
+        access_token: { type: string, description: JWT access token (HS256) }
+        token_type: { type: string, example: Bearer }
+        expires_at: { type: string, format: date-time, description: Access-token expiry }
+        refresh_token: { type: string, description: Opaque, rotated on each refresh }
+        refresh_expires_at: { type: string, format: date-time }
+        user:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+    Error:
+      type: object
+      properties:
+        error: { type: string, description: Machine-readable code }
+        message: { type: string }
+  responses:
+    Error:
+      description: Error envelope
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+# Planned route groups (to be filled in as modules land):
+#   /api/v1/auth/*       — signup, login, social, refresh
+#   /api/v1/users/*      — profiles, follow/unfollow
+#   /api/v1/feed, /posts — timeline, create post, like, comment, stories
+#   /api/v1/nearby       — geospatial discovery (query: lat,lng,radius,gender,age)
+#   /api/v1/conversations, /messages, /ws — chat REST + WebSocket upgrade
+#   /api/v1/media/uploads — presigned upload URLs

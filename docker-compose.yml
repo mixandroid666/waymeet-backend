@@ -1,0 +1,70 @@
+# Local development infrastructure for the Ruammit backend.
+#   postgres  — Postgres 16 + PostGIS (geospatial "nearby people" queries)
+#   redis     — chat fan-out (pub/sub), caching, asynq job queue
+#   minio     — S3-compatible object storage for images/video/voice
+#
+# Start with: docker compose up -d
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ruammit
+      POSTGRES_PASSWORD: ruammit
+      POSTGRES_DB: ruammit
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ruammit"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Web-based DB browser at http://localhost:8081 — a lightweight GUI for
+  # Postgres. Optional: only starts with the "tools" profile, e.g.
+  #   docker compose --profile tools up -d adminer   (or: make db-ui)
+  adminer:
+    image: adminer:latest
+    profiles: ["tools"]
+    ports:
+      - "8081:8080"
+    environment:
+      # Pre-fills the "Server" field on the login page.
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on:
+      - postgres
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web console
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

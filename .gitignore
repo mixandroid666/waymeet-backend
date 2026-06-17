@@ -1,0 +1,19 @@
+# Binaries
+/bin/
+*.exe
+*.out
+
+# Env / secrets
+.env
+*.local
+
+# Go
+/vendor/
+coverage.out
+
+# Editor
+.idea/
+.vscode/
+
+# Local data volumes
+/.data/
