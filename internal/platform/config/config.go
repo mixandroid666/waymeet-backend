@@ -27,6 +27,11 @@ type Config struct {
 	S3SecretKey string
 
 	FCMCredentialsFile string
+
+	// Email OTP delivery (Resend). When ResendAPIKey is empty, the app falls
+	// back to logging OTP codes instead of emailing them (dev default).
+	ResendAPIKey string
+	OTPEmailFrom string
 }
 
 // Load reads configuration from the environment, applying sane defaults so the
@@ -49,6 +54,12 @@ func Load() Config {
 		S3SecretKey: env("S3_SECRET_KEY", "minioadmin"),
 
 		FCMCredentialsFile: env("FCM_CREDENTIALS_FILE", ""),
+
+		ResendAPIKey: env("RESEND_API_KEY", ""),
+		// onboarding@resend.dev is Resend's shared sandbox sender, usable
+		// without a verified domain. Replace with noreply@<your-domain> once
+		// you verify a domain in the Resend dashboard.
+		OTPEmailFrom: env("OTP_EMAIL_FROM", "onboarding@resend.dev"),
 	}
 }
 

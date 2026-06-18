@@ -46,13 +46,24 @@ func registerRoutes(mux *http.ServeMux, cfg config.Config, log *slog.Logger, db 
 	mux.HandleFunc("GET /readyz", readiness(db))
 
 	// Auth: registration + OTP verification.
-	authSvc := auth.NewService(db, cfg, log, auth.NewLogSender(log))
+	authSvc := auth.NewService(db, cfg, log, otpSender(cfg, log))
 	auth.NewHandler(authSvc, log).RegisterRoutes(mux)
 
 	// TODO: mount remaining feature modules, e.g.
 	//   feed.RegisterRoutes(mux, feedService)
 	//   location.RegisterRoutes(mux, locationService)
 	//   chat.RegisterRoutes(mux, chatHub)
+}
+
+// otpSender chooses how OTP codes are delivered. With a Resend API key set,
+// emails go out via Resend (phone contacts fall back to logging, since no SMS
+// provider is wired up yet). Without a key, all codes are logged (dev default).
+func otpSender(cfg config.Config, log *slog.Logger) auth.Sender {
+	logSender := auth.NewLogSender(log)
+	if cfg.ResendAPIKey == "" {
+		return logSender
+	}
+	return auth.NewResendSender(cfg.ResendAPIKey, cfg.OTPEmailFrom, log, logSender)
 }
 
 // health is a liveness probe — the process is up.

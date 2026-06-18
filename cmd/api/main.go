@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"ruammit-backend/internal/platform/config"
 	"ruammit-backend/internal/platform/logging"
 	"ruammit-backend/internal/platform/server"
@@ -17,6 +19,10 @@ import (
 )
 
 func main() {
+	// Load .env into the environment for local dev. Missing file is fine —
+	// in production, config comes from real environment variables.
+	_ = godotenv.Load()
+
 	cfg := config.Load()
 	log := logging.New(cfg.Env)
 
