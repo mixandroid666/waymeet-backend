@@ -162,6 +162,55 @@ func (q *Queries) CreatePostWithMeta(ctx context.Context, arg CreatePostWithMeta
 	return i, err
 }
 
+const createStory = `-- name: CreateStory :one
+INSERT INTO stories (author_id, media_url, media_type)
+VALUES ($1, $2, $3)
+RETURNING id, author_id, media_url, media_type, created_at, expires_at
+`
+
+type CreateStoryParams struct {
+	AuthorID  pgtype.UUID `json:"author_id"`
+	MediaUrl  string      `json:"media_url"`
+	MediaType string      `json:"media_type"`
+}
+
+type CreateStoryRow struct {
+	ID        pgtype.UUID        `json:"id"`
+	AuthorID  pgtype.UUID        `json:"author_id"`
+	MediaUrl  string             `json:"media_url"`
+	MediaType string             `json:"media_type"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) CreateStory(ctx context.Context, arg CreateStoryParams) (CreateStoryRow, error) {
+	row := q.db.QueryRow(ctx, createStory, arg.AuthorID, arg.MediaUrl, arg.MediaType)
+	var i CreateStoryRow
+	err := row.Scan(
+		&i.ID,
+		&i.AuthorID,
+		&i.MediaUrl,
+		&i.MediaType,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
+const deleteOwnStory = `-- name: DeleteOwnStory :exec
+DELETE FROM stories WHERE id = $1 AND author_id = $2
+`
+
+type DeleteOwnStoryParams struct {
+	ID       pgtype.UUID `json:"id"`
+	AuthorID pgtype.UUID `json:"author_id"`
+}
+
+func (q *Queries) DeleteOwnStory(ctx context.Context, arg DeleteOwnStoryParams) error {
+	_, err := q.db.Exec(ctx, deleteOwnStory, arg.ID, arg.AuthorID)
+	return err
+}
+
 const likePost = `-- name: LikePost :exec
 INSERT INTO post_likes (post_id, user_id)
 VALUES ($1, $2)
@@ -185,6 +234,7 @@ SELECT
     u.display_name AS author_name,
     u.avatar_url   AS author_avatar_url,
     s.media_url,
+    s.media_type,
     s.created_at
 FROM stories s
 JOIN users u ON u.id = s.author_id
@@ -199,6 +249,7 @@ type ListActiveStoriesRow struct {
 	AuthorName      *string            `json:"author_name"`
 	AuthorAvatarUrl *string            `json:"author_avatar_url"`
 	MediaUrl        string             `json:"media_url"`
+	MediaType       string             `json:"media_type"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
@@ -219,6 +270,7 @@ func (q *Queries) ListActiveStories(ctx context.Context, lim int32) ([]ListActiv
 			&i.AuthorName,
 			&i.AuthorAvatarUrl,
 			&i.MediaUrl,
+			&i.MediaType,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

@@ -1,7 +1,9 @@
 package feed
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -75,13 +77,29 @@ type PostLocation struct {
 	Name      string
 }
 
+// StoryMedia is one piece of media within a story bubble.
+type StoryMedia struct {
+	URL  string
+	Type string // "image" | "video"
+}
+
 // StoryAuthor groups one author's active stories for the story strip.
 type StoryAuthor struct {
 	AuthorID        string
 	AuthorName      string
 	AuthorAvatarURL string
-	MediaURLs       []string
+	Media           []StoryMedia
 	LatestAt        time.Time
+}
+
+// Story is a single story row returned after creation.
+type Story struct {
+	ID        string
+	AuthorID  string
+	MediaURL  string
+	MediaType string
+	CreatedAt time.Time
+	ExpiresAt time.Time
 }
 
 // FeedSource tells the client which timeline it received: the personalized
@@ -139,8 +157,17 @@ func (s *Service) HomeFeed(ctx context.Context, viewerID string, limit, offset i
 		})
 	}
 
-	// Fallback: a new user with no follows would otherwise see a blank feed.
-	if len(posts) == 0 && offset == 0 {
+	// Fallback: if the viewer follows no one, their home feed contains only
+	// their own posts. Detect that and switch to the global discovery timeline
+	// so they see content from everyone, not just themselves.
+	hasFollowedContent := false
+	for _, p := range posts {
+		if p.AuthorID != viewerID {
+			hasFollowedContent = true
+			break
+		}
+	}
+	if !hasFollowedContent && offset == 0 {
 		gRows, err := s.db.Queries.ListGlobalTimeline(ctx, dbgen.ListGlobalTimelineParams{
 			ViewerID: viewer,
 			Off:      offset,
@@ -150,6 +177,7 @@ func (s *Service) HomeFeed(ctx context.Context, viewerID string, limit, offset i
 			return nil, err
 		}
 		source = SourceGlobal
+		posts = make([]Post, 0, len(gRows)) // replace home posts, don't append
 		for _, r := range gRows {
 			posts = append(posts, Post{
 				ID:              uuidString(r.ID),
@@ -196,7 +224,7 @@ func (s *Service) Stories(ctx context.Context) ([]StoryAuthor, error) {
 			byAuthor[id] = author
 			ordered = append(ordered, author)
 		}
-		author.MediaURLs = append(author.MediaURLs, r.MediaUrl)
+		author.Media = append(author.Media, StoryMedia{URL: r.MediaUrl, Type: r.MediaType})
 	}
 
 	out := make([]StoryAuthor, 0, len(ordered))
@@ -273,6 +301,58 @@ func (s *Service) UnlikePost(ctx context.Context, viewerID, postID string) error
 		return ErrInvalidPostID
 	}
 	return s.db.Queries.UnlikePost(ctx, dbgen.UnlikePostParams{PostID: post, UserID: viewer})
+}
+
+// CreateStory stores the media file and inserts a story row with a 24-hour TTL.
+func (s *Service) CreateStory(ctx context.Context, authorID, mediaType string, data []byte, ext string) (*Story, error) {
+	author, err := parseUUID(authorID)
+	if err != nil {
+		return nil, err
+	}
+
+	storyID, err := newUUID()
+	if err != nil {
+		return nil, err
+	}
+	idStr := uuidString(storyID)
+
+	key := "stories/" + idStr + "/media" + ext
+	url, err := s.media.Save(key, bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("save story media: %w", err)
+	}
+
+	row, err := s.db.Queries.CreateStory(ctx, dbgen.CreateStoryParams{
+		AuthorID:  author,
+		MediaUrl:  url,
+		MediaType: mediaType,
+	})
+	if err != nil {
+		_ = s.media.RemoveAll("stories/" + idStr)
+		return nil, err
+	}
+
+	return &Story{
+		ID:        uuidString(row.ID),
+		AuthorID:  uuidString(row.AuthorID),
+		MediaURL:  row.MediaUrl,
+		MediaType: row.MediaType,
+		CreatedAt: row.CreatedAt.Time,
+		ExpiresAt: row.ExpiresAt.Time,
+	}, nil
+}
+
+// DeleteStory removes a story only when the caller is its author.
+func (s *Service) DeleteStory(ctx context.Context, storyID, authorID string) error {
+	story, err := parseUUID(storyID)
+	if err != nil {
+		return ErrInvalidPostID
+	}
+	author, err := parseUUID(authorID)
+	if err != nil {
+		return err
+	}
+	return s.db.Queries.DeleteOwnStory(ctx, dbgen.DeleteOwnStoryParams{ID: story, AuthorID: author})
 }
 
 // --- helpers ---------------------------------------------------------------

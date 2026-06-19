@@ -131,6 +131,7 @@ type Story struct {
 	MediaUrl  string             `json:"media_url"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	MediaType string             `json:"media_type"`
 }
 
 type User struct {

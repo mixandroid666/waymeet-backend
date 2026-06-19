@@ -60,6 +60,21 @@ func Recoverer(log *slog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
+// CORS adds permissive cross-origin headers so Flutter web (and other browser
+// clients) can reach the API. In production, restrict AllowedOrigins as needed.
+func CORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // Chain applies middleware in order: Chain(h, a, b) runs a, then b, then h.
 func Chain(h http.Handler, mws ...func(http.Handler) http.Handler) http.Handler {
 	for i := len(mws) - 1; i >= 0; i-- {

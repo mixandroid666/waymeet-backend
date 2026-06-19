@@ -49,6 +49,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("DELETE /api/v1/feed/posts/{id}/like", h.protected(h.unlike))
 	mux.Handle("POST /api/v1/posts/create", h.protected(h.create))
 	mux.Handle("GET /api/v1/users/{id}/posts", h.protected(h.userPosts))
+	mux.Handle("POST /api/v1/stories", h.protected(h.createStory))
+	mux.Handle("DELETE /api/v1/stories/{id}", h.protected(h.deleteStory))
 }
 
 func (h *Handler) protected(fn http.HandlerFunc) http.Handler {
@@ -96,14 +98,26 @@ type feedResponse struct {
 	NextOffset *int32    `json:"next_offset"`
 }
 
+type storyMediaDTO struct {
+	URL  string `json:"url"`
+	Type string `json:"type"` // "image" | "video"
+}
+
 type storyDTO struct {
-	Author    authorDTO `json:"author"`
-	MediaURLs []string  `json:"media_urls"`
-	LatestAt  time.Time `json:"latest_at"`
+	Author   authorDTO      `json:"author"`
+	Media    []storyMediaDTO `json:"media"`
+	LatestAt time.Time      `json:"latest_at"`
 }
 
 type storiesResponse struct {
 	Stories []storyDTO `json:"stories"`
+}
+
+type createStoryResponse struct {
+	ID        string    `json:"id"`
+	MediaURL  string    `json:"media_url"`
+	MediaType string    `json:"media_type"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 // --- handlers --------------------------------------------------------------
@@ -142,10 +156,14 @@ func (h *Handler) stories(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]storyDTO, 0, len(authors))
 	for _, a := range authors {
+		media := make([]storyMediaDTO, 0, len(a.Media))
+		for _, m := range a.Media {
+			media = append(media, storyMediaDTO{URL: m.URL, Type: m.Type})
+		}
 		out = append(out, storyDTO{
-			Author:    authorDTO{ID: a.AuthorID, Name: a.AuthorName, AvatarURL: a.AuthorAvatarURL},
-			MediaURLs: a.MediaURLs,
-			LatestAt:  a.LatestAt,
+			Author:   authorDTO{ID: a.AuthorID, Name: a.AuthorName, AvatarURL: a.AuthorAvatarURL},
+			Media:    media,
+			LatestAt: a.LatestAt,
 		})
 	}
 	httpx.JSON(w, http.StatusOK, storiesResponse{Stories: out})
@@ -416,6 +434,83 @@ func videoExt(data []byte, filename string) (string, bool) {
 		return ".mov", true
 	}
 	return "", false
+}
+
+// createStory handles POST /api/v1/stories — multipart with a single "media" file.
+func (h *Handler) createStory(w http.ResponseWriter, r *http.Request) {
+	viewerID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized", "")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxVideoBytes+(2<<20))
+	if err := r.ParseMultipartForm(maxMultipartMemory); err != nil {
+		if strings.Contains(err.Error(), "request body too large") {
+			httpx.Error(w, http.StatusRequestEntityTooLarge, "payload_too_large", "The upload is too large.")
+			return
+		}
+		httpx.Error(w, http.StatusBadRequest, "invalid_request", "Expected multipart/form-data.")
+		return
+	}
+	defer func() {
+		if r.MultipartForm != nil {
+			_ = r.MultipartForm.RemoveAll()
+		}
+	}()
+
+	mediaHeaders := r.MultipartForm.File["media"]
+	if len(mediaHeaders) == 0 {
+		httpx.Error(w, http.StatusBadRequest, "missing_media", "A media file is required.")
+		return
+	}
+
+	fh := mediaHeaders[0]
+	data, ok := readUpload(w, fh, maxVideoBytes, "The media file")
+	if !ok {
+		return
+	}
+
+	// Detect whether this is an image or video.
+	var mediaType, ext string
+	if e, ok2 := imageExt(data, fh.Filename); ok2 {
+		mediaType, ext = "image", e
+	} else if e, ok2 := videoExt(data, fh.Filename); ok2 {
+		mediaType, ext = "video", e
+	} else {
+		httpx.Error(w, http.StatusBadRequest, "unsupported_media_type",
+			"Stories must be JPG, PNG, WebP, MP4 or MOV.")
+		return
+	}
+
+	story, err := h.svc.CreateStory(r.Context(), viewerID, mediaType, data, ext)
+	if err != nil {
+		h.log.Error("create story", "err", err)
+		httpx.Error(w, http.StatusInternalServerError, "internal_error", "")
+		return
+	}
+
+	httpx.JSON(w, http.StatusCreated, createStoryResponse{
+		ID:        story.ID,
+		MediaURL:  story.MediaURL,
+		MediaType: story.MediaType,
+		ExpiresAt: story.ExpiresAt,
+	})
+}
+
+// deleteStory handles DELETE /api/v1/stories/{id} — only the author may delete.
+func (h *Handler) deleteStory(w http.ResponseWriter, r *http.Request) {
+	viewerID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized", "")
+		return
+	}
+	storyID := r.PathValue("id")
+	if err := h.svc.DeleteStory(r.Context(), storyID, viewerID); err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // --- helpers ---------------------------------------------------------------

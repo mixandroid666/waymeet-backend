@@ -108,12 +108,21 @@ SELECT
     u.display_name AS author_name,
     u.avatar_url   AS author_avatar_url,
     s.media_url,
+    s.media_type,
     s.created_at
 FROM stories s
 JOIN users u ON u.id = s.author_id
 WHERE s.expires_at > now()
 ORDER BY s.created_at DESC
 LIMIT sqlc.arg(lim);
+
+-- name: CreateStory :one
+INSERT INTO stories (author_id, media_url, media_type)
+VALUES ($1, $2, $3)
+RETURNING id, author_id, media_url, media_type, created_at, expires_at;
+
+-- name: DeleteOwnStory :exec
+DELETE FROM stories WHERE id = $1 AND author_id = $2;
 
 -- name: ListUserPosts :many
 -- Posts by a specific author, with the viewer's like state for heart rendering.

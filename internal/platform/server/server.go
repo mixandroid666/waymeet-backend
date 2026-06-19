@@ -27,6 +27,7 @@ func New(cfg config.Config, log *slog.Logger, db *storage.DB) *http.Server {
 	registerRoutes(mux, cfg, log, db)
 
 	handler := httpx.Chain(mux,
+		httpx.CORS,
 		httpx.Recoverer(log),
 		httpx.Logger(log),
 	)
@@ -52,8 +53,9 @@ func registerRoutes(mux *http.ServeMux, cfg config.Config, log *slog.Logger, db 
 	authSvc := auth.NewService(db, cfg, log, otpSender(cfg, log))
 	auth.NewHandler(authSvc, log).RegisterRoutes(mux)
 
-	// Local media storage + a static route to serve uploaded post media.
-	mediaStore := mediastore.NewLocal(cfg.UploadDir, cfg.MediaURLPrefix)
+	// Media storage: S3/MinIO when credentials are present, local filesystem otherwise.
+	// The local file server is always mounted as a fallback for local dev.
+	mediaStore := newMediaStore(cfg, log)
 	fileServer := http.FileServer(http.Dir(cfg.UploadDir))
 	mux.Handle("GET "+cfg.MediaURLPrefix+"/",
 		http.StripPrefix(cfg.MediaURLPrefix+"/", fileServer))
@@ -82,6 +84,21 @@ func otpSender(cfg config.Config, log *slog.Logger) auth.Sender {
 		return logSender
 	}
 	return auth.NewResendSender(cfg.ResendAPIKey, cfg.OTPEmailFrom, log, logSender)
+}
+
+// newMediaStore returns an S3Store when S3 credentials are configured, falling
+// back to the local filesystem store for dev environments without MinIO running.
+func newMediaStore(cfg config.Config, log *slog.Logger) mediastore.Store {
+	if cfg.S3Bucket != "" && cfg.S3AccessKey != "" {
+		s, err := mediastore.NewS3(cfg.S3Endpoint, cfg.S3Region, cfg.S3Bucket, cfg.S3AccessKey, cfg.S3SecretKey)
+		if err == nil {
+			log.Info("media store: s3", "bucket", cfg.S3Bucket, "endpoint", cfg.S3Endpoint)
+			return s
+		}
+		log.Warn("s3 init failed, falling back to local", "err", err)
+	}
+	log.Info("media store: local", "dir", cfg.UploadDir)
+	return mediastore.NewLocal(cfg.UploadDir, cfg.MediaURLPrefix)
 }
 
 // health is a liveness probe — the process is up.
