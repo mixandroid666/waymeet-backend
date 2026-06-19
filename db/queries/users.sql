@@ -36,3 +36,21 @@ RETURNING id, email, phone, display_name, avatar_url, bio, gender, birth_date, s
 SELECT id, email, phone, display_name, avatar_url, bio, gender, birth_date, status, created_at
 FROM users
 WHERE id = sqlc.arg(id);
+
+-- name: CountFollowers :one
+SELECT count(*) FROM follows WHERE followee_id = sqlc.arg(user_id);
+
+-- name: CountFollowing :one
+SELECT count(*) FROM follows WHERE follower_id = sqlc.arg(user_id);
+
+-- name: ListProfilePhotos :many
+SELECT photo_url FROM profile_photos
+WHERE user_id = sqlc.arg(user_id)
+ORDER BY photo_order;
+
+-- name: DeleteProfilePhotos :exec
+DELETE FROM profile_photos WHERE user_id = sqlc.arg(user_id);
+
+-- name: InsertProfilePhoto :exec
+INSERT INTO profile_photos (user_id, photo_url, photo_order)
+VALUES (sqlc.arg(user_id), sqlc.arg(photo_url), sqlc.arg(photo_order)::smallint);

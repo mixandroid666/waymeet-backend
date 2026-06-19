@@ -48,6 +48,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/feed/posts/{id}/like", h.protected(h.like))
 	mux.Handle("DELETE /api/v1/feed/posts/{id}/like", h.protected(h.unlike))
 	mux.Handle("POST /api/v1/posts/create", h.protected(h.create))
+	mux.Handle("GET /api/v1/users/{id}/posts", h.protected(h.userPosts))
 }
 
 func (h *Handler) protected(fn http.HandlerFunc) http.Handler {
@@ -148,6 +149,32 @@ func (h *Handler) stories(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	httpx.JSON(w, http.StatusOK, storiesResponse{Stories: out})
+}
+
+func (h *Handler) userPosts(w http.ResponseWriter, r *http.Request) {
+	viewerID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized", "")
+		return
+	}
+	authorID := r.PathValue("id")
+	limit := queryInt(r, "limit", 0)
+	offset := queryInt(r, "offset", 0)
+
+	page, err := h.svc.UserPosts(r.Context(), authorID, viewerID, limit, offset)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	posts := make([]postDTO, 0, len(page.Posts))
+	for _, p := range page.Posts {
+		posts = append(posts, postDTOOf(p))
+	}
+	httpx.JSON(w, http.StatusOK, feedResponse{
+		Posts:      posts,
+		Source:     string(page.Source),
+		NextOffset: page.NextOffset,
+	})
 }
 
 func (h *Handler) like(w http.ResponseWriter, r *http.Request) {

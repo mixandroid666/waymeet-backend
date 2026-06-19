@@ -424,6 +424,106 @@ func (q *Queries) ListHomeTimeline(ctx context.Context, arg ListHomeTimelinePara
 	return items, nil
 }
 
+const listUserPosts = `-- name: ListUserPosts :many
+SELECT
+    p.id,
+    p.author_id,
+    u.display_name AS author_name,
+    u.avatar_url   AS author_avatar_url,
+    p.body,
+    p.created_at,
+    (SELECT count(*) FROM post_likes l WHERE l.post_id = p.id)  AS like_count,
+    (SELECT count(*) FROM comments c   WHERE c.post_id = p.id)  AS comment_count,
+    EXISTS (
+        SELECT 1 FROM post_likes l
+        WHERE l.post_id = p.id AND l.user_id = $1
+    ) AS liked_by_viewer,
+    ARRAY(
+        SELECT m.media_url FROM post_media m
+        WHERE m.post_id = p.id AND m.media_type = 'image'
+        ORDER BY m.media_order
+    )::text[] AS image_urls,
+    COALESCE((
+        SELECT m.media_url FROM post_media m
+        WHERE m.post_id = p.id AND m.media_type = 'video'
+        ORDER BY m.media_order LIMIT 1
+    ), '')::text AS video_url,
+    loc.latitude      AS loc_latitude,
+    loc.longitude     AS loc_longitude,
+    loc.location_name AS loc_name
+FROM posts p
+JOIN users u ON u.id = p.author_id
+LEFT JOIN post_locations loc ON loc.post_id = p.id
+WHERE p.author_id = $2
+ORDER BY p.created_at DESC
+LIMIT $4 OFFSET $3
+`
+
+type ListUserPostsParams struct {
+	ViewerID pgtype.UUID `json:"viewer_id"`
+	AuthorID pgtype.UUID `json:"author_id"`
+	Off      int32       `json:"off"`
+	Lim      int32       `json:"lim"`
+}
+
+type ListUserPostsRow struct {
+	ID              pgtype.UUID        `json:"id"`
+	AuthorID        pgtype.UUID        `json:"author_id"`
+	AuthorName      *string            `json:"author_name"`
+	AuthorAvatarUrl *string            `json:"author_avatar_url"`
+	Body            string             `json:"body"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	LikeCount       int64              `json:"like_count"`
+	CommentCount    int64              `json:"comment_count"`
+	LikedByViewer   bool               `json:"liked_by_viewer"`
+	ImageUrls       []string           `json:"image_urls"`
+	VideoUrl        string             `json:"video_url"`
+	LocLatitude     *float64           `json:"loc_latitude"`
+	LocLongitude    *float64           `json:"loc_longitude"`
+	LocName         *string            `json:"loc_name"`
+}
+
+// Posts by a specific author, with the viewer's like state for heart rendering.
+func (q *Queries) ListUserPosts(ctx context.Context, arg ListUserPostsParams) ([]ListUserPostsRow, error) {
+	rows, err := q.db.Query(ctx, listUserPosts,
+		arg.ViewerID,
+		arg.AuthorID,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUserPostsRow
+	for rows.Next() {
+		var i ListUserPostsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AuthorID,
+			&i.AuthorName,
+			&i.AuthorAvatarUrl,
+			&i.Body,
+			&i.CreatedAt,
+			&i.LikeCount,
+			&i.CommentCount,
+			&i.LikedByViewer,
+			&i.ImageUrls,
+			&i.VideoUrl,
+			&i.LocLatitude,
+			&i.LocLongitude,
+			&i.LocName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unlikePost = `-- name: UnlikePost :exec
 DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2
 `

@@ -100,6 +100,14 @@ type PostMedium struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
+type ProfilePhoto struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	PhotoUrl   string             `json:"photo_url"`
+	PhotoOrder int16              `json:"photo_order"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type RefreshToken struct {
 	ID        pgtype.UUID        `json:"id"`
 	UserID    pgtype.UUID        `json:"user_id"`

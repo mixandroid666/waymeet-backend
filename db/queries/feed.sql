@@ -115,6 +115,41 @@ WHERE s.expires_at > now()
 ORDER BY s.created_at DESC
 LIMIT sqlc.arg(lim);
 
+-- name: ListUserPosts :many
+-- Posts by a specific author, with the viewer's like state for heart rendering.
+SELECT
+    p.id,
+    p.author_id,
+    u.display_name AS author_name,
+    u.avatar_url   AS author_avatar_url,
+    p.body,
+    p.created_at,
+    (SELECT count(*) FROM post_likes l WHERE l.post_id = p.id)  AS like_count,
+    (SELECT count(*) FROM comments c   WHERE c.post_id = p.id)  AS comment_count,
+    EXISTS (
+        SELECT 1 FROM post_likes l
+        WHERE l.post_id = p.id AND l.user_id = sqlc.arg(viewer_id)
+    ) AS liked_by_viewer,
+    ARRAY(
+        SELECT m.media_url FROM post_media m
+        WHERE m.post_id = p.id AND m.media_type = 'image'
+        ORDER BY m.media_order
+    )::text[] AS image_urls,
+    COALESCE((
+        SELECT m.media_url FROM post_media m
+        WHERE m.post_id = p.id AND m.media_type = 'video'
+        ORDER BY m.media_order LIMIT 1
+    ), '')::text AS video_url,
+    loc.latitude      AS loc_latitude,
+    loc.longitude     AS loc_longitude,
+    loc.location_name AS loc_name
+FROM posts p
+JOIN users u ON u.id = p.author_id
+LEFT JOIN post_locations loc ON loc.post_id = p.id
+WHERE p.author_id = sqlc.arg(author_id)
+ORDER BY p.created_at DESC
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
 -- name: LikePost :exec
 INSERT INTO post_likes (post_id, user_id)
 VALUES ($1, $2)

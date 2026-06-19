@@ -206,6 +206,49 @@ func (s *Service) Stories(ctx context.Context) ([]StoryAuthor, error) {
 	return out, nil
 }
 
+// UserPosts returns a paged list of posts by the given author, decorated with
+// the viewer's like state so the heart icon renders correctly.
+func (s *Service) UserPosts(ctx context.Context, authorID, viewerID string, limit, offset int32) (*FeedPage, error) {
+	author, err := parseUUID(authorID)
+	if err != nil {
+		return nil, ErrInvalidPostID
+	}
+	viewer, err := parseUUID(viewerID)
+	if err != nil {
+		return nil, ErrInvalidPostID
+	}
+	limit = clampLimit(limit)
+
+	rows, err := s.db.Queries.ListUserPosts(ctx, dbgen.ListUserPostsParams{
+		AuthorID: author,
+		ViewerID: viewer,
+		Off:      offset,
+		Lim:      limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	posts := make([]Post, 0, len(rows))
+	for _, r := range rows {
+		posts = append(posts, Post{
+			ID:              uuidString(r.ID),
+			AuthorID:        uuidString(r.AuthorID),
+			AuthorName:      deref(r.AuthorName),
+			AuthorAvatarURL: deref(r.AuthorAvatarUrl),
+			Body:            r.Body,
+			CreatedAt:       r.CreatedAt.Time,
+			LikeCount:       r.LikeCount,
+			CommentCount:    r.CommentCount,
+			LikedByViewer:   r.LikedByViewer,
+			ImageURLs:       r.ImageUrls,
+			VideoURL:        r.VideoUrl,
+			Location:        locationOf(r.LocLatitude, r.LocLongitude, r.LocName),
+		})
+	}
+	return &FeedPage{Posts: posts, Source: SourceHome, NextOffset: nextOffset(offset, limit, len(posts))}, nil
+}
+
 // LikePost records (idempotently) that the viewer likes a post.
 func (s *Service) LikePost(ctx context.Context, viewerID, postID string) error {
 	viewer, err := parseUUID(viewerID)

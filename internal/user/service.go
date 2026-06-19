@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -61,6 +62,9 @@ type Profile struct {
 	BirthDate        *time.Time
 	Status           string
 	ProfileCompleted bool
+	Photos           []string // ordered highlight-photo URLs (up to 6)
+	FollowerCount    int64
+	FollowingCount   int64
 }
 
 // NewAvatar is a decoded avatar upload ready to be stored.
@@ -69,17 +73,36 @@ type NewAvatar struct {
 	Data []byte
 }
 
-// UpdateProfileInput is the validated, decoded profile update. Pointer fields
-// left nil are unchanged (partial update); BirthDate is a pre-parsed date.
-type UpdateProfileInput struct {
-	DisplayName *string
-	Gender      *string
-	Bio         *string
-	BirthDate   *time.Time
-	Avatar      *NewAvatar
+// NewPhoto is a single decoded highlight-photo upload.
+type NewPhoto struct {
+	Order int16 // 1-6
+	Ext   string
+	Data  []byte
 }
 
-// Get returns the caller's profile.
+// KeepPhoto signals that an existing highlight-photo URL should be retained in
+// its original slot after a replace-all edit.
+type KeepPhoto struct {
+	Order int16 // 1-6
+	URL   string
+}
+
+// UpdateProfileInput is the validated, decoded profile update. Pointer fields
+// left nil are unchanged (partial update); BirthDate is a pre-parsed date.
+// When ReplacePhotos is true (or Photos is non-empty for the registration flow)
+// all existing highlight photos are deleted and rebuilt from KeepPhotos + Photos.
+type UpdateProfileInput struct {
+	DisplayName   *string
+	Gender        *string
+	Bio           *string
+	BirthDate     *time.Time
+	Avatar        *NewAvatar
+	Photos        []NewPhoto  // new file uploads
+	KeepPhotos    []KeepPhoto // existing URLs to retain in their original slots
+	ReplacePhotos bool        // true = edit flow: replace photo grid explicitly
+}
+
+// Get returns the caller's profile including highlight photos.
 func (s *Service) Get(ctx context.Context, userID string) (*Profile, error) {
 	uid, err := parseUUID(userID)
 	if err != nil {
@@ -92,7 +115,11 @@ func (s *Service) Get(ctx context.Context, userID string) (*Profile, error) {
 		}
 		return nil, err
 	}
-	return profileFromRow(getRow(row)), nil
+	p := profileFromRow(getRow(row))
+	p.Photos, _ = s.db.Queries.ListProfilePhotos(ctx, uid)
+	p.FollowerCount, _ = s.db.Queries.CountFollowers(ctx, uid)
+	p.FollowingCount, _ = s.db.Queries.CountFollowing(ctx, uid)
+	return p, nil
 }
 
 // Update validates and applies a profile update, storing the avatar first when
@@ -153,7 +180,37 @@ func (s *Service) Update(ctx context.Context, userID string, in UpdateProfileInp
 		}
 		return nil, err
 	}
-	return profileFromRow(profileRow(updateRow(row))), nil
+	p := profileFromRow(profileRow(updateRow(row)))
+
+	if in.ReplacePhotos || len(in.Photos) > 0 {
+		if err := s.db.Queries.DeleteProfilePhotos(ctx, uid); err != nil {
+			return nil, err
+		}
+		for _, kp := range in.KeepPhotos {
+			_ = s.db.Queries.InsertProfilePhoto(ctx, dbgen.InsertProfilePhotoParams{
+				UserID:     uid,
+				PhotoUrl:   kp.URL,
+				PhotoOrder: kp.Order,
+			})
+		}
+		for _, photo := range in.Photos {
+			key := fmt.Sprintf("photos/%s/%d%s", userID, photo.Order, photo.Ext)
+			url, err := s.media.Save(key, bytes.NewReader(photo.Data))
+			if err != nil {
+				return nil, err
+			}
+			_ = s.db.Queries.InsertProfilePhoto(ctx, dbgen.InsertProfilePhotoParams{
+				UserID:     uid,
+				PhotoUrl:   url,
+				PhotoOrder: photo.Order,
+			})
+		}
+	}
+	p.Photos, _ = s.db.Queries.ListProfilePhotos(ctx, uid)
+	p.FollowerCount, _ = s.db.Queries.CountFollowers(ctx, uid)
+	p.FollowingCount, _ = s.db.Queries.CountFollowing(ctx, uid)
+
+	return p, nil
 }
 
 // --- helpers ---------------------------------------------------------------

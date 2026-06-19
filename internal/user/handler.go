@@ -2,6 +2,7 @@ package user
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime/multipart"
@@ -14,11 +15,13 @@ import (
 	"ruammit-backend/internal/platform/httpx"
 )
 
-// Upload limits for the avatar.
+// Upload limits.
 const (
-	maxAvatarBytes     = 5 << 20 // 5 MB
-	maxMultipartMemory = 8 << 20
-	maxRequestBytes    = maxAvatarBytes + (1 << 20)
+	maxAvatarBytes     = 5 << 20  // 5 MB per avatar
+	maxPhotoBytes      = 2 << 20  // 2 MB per highlight photo
+	maxPhotos          = 6
+	maxMultipartMemory = 16 << 20
+	maxRequestBytes    = maxAvatarBytes + (maxPhotos * maxPhotoBytes) + (2 << 20)
 )
 
 // Handler exposes the profile HTTP endpoints (all authenticated).
@@ -42,19 +45,26 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 // --- response DTO ----------------------------------------------------------
 
 type profileDTO struct {
-	ID               string  `json:"id"`
-	Email            string  `json:"email,omitempty"`
-	Phone            string  `json:"phone,omitempty"`
-	DisplayName      string  `json:"display_name"`
-	AvatarURL        string  `json:"avatar_url"`
-	Bio              string  `json:"bio"`
-	Gender           string  `json:"gender"`
-	BirthDate        *string `json:"birth_date"` // YYYY-MM-DD or null
-	Status           string  `json:"status"`
-	ProfileCompleted bool    `json:"profile_completed"`
+	ID               string   `json:"id"`
+	Email            string   `json:"email,omitempty"`
+	Phone            string   `json:"phone,omitempty"`
+	DisplayName      string   `json:"display_name"`
+	AvatarURL        string   `json:"avatar_url"`
+	Bio              string   `json:"bio"`
+	Gender           string   `json:"gender"`
+	BirthDate        *string  `json:"birth_date"` // YYYY-MM-DD or null
+	Status           string   `json:"status"`
+	ProfileCompleted bool     `json:"profile_completed"`
+	ThumbnailURLs    []string `json:"thumbnail_urls"` // ordered, up to 6
+	FollowerCount    int64    `json:"follower_count"`
+	FollowingCount   int64    `json:"following_count"`
 }
 
 func profileDTOOf(p *Profile) profileDTO {
+	urls := p.Photos
+	if urls == nil {
+		urls = []string{}
+	}
 	dto := profileDTO{
 		ID:               p.ID,
 		Email:            p.Email,
@@ -65,6 +75,9 @@ func profileDTOOf(p *Profile) profileDTO {
 		Gender:           p.Gender,
 		Status:           p.Status,
 		ProfileCompleted: p.ProfileCompleted,
+		ThumbnailURLs:    urls,
+		FollowerCount:    p.FollowerCount,
+		FollowingCount:   p.FollowingCount,
 	}
 	if p.BirthDate != nil {
 		s := p.BirthDate.Format("2006-01-02")
@@ -160,6 +173,35 @@ func (h *Handler) parseInput(w http.ResponseWriter, r *http.Request) (*UpdatePro
 		in.Avatar = avatar
 	}
 
+	for i := 1; i <= maxPhotos; i++ {
+		key := fmt.Sprintf("photo_%d", i)
+		fhs := r.MultipartForm.File[key]
+		if len(fhs) == 0 {
+			continue
+		}
+		photo, ok := h.readPhoto(w, fhs[0], int16(i))
+		if !ok {
+			return nil, false
+		}
+		in.Photos = append(in.Photos, *photo)
+	}
+
+	if has(r, "replace_photos") {
+		in.ReplacePhotos = true
+		for i := 1; i <= maxPhotos; i++ {
+			urlKey := fmt.Sprintf("photo_%d_url", i)
+			if !has(r, urlKey) {
+				continue
+			}
+			if u := r.FormValue(urlKey); u != "" {
+				in.KeepPhotos = append(in.KeepPhotos, KeepPhoto{
+					Order: int16(i),
+					URL:   u,
+				})
+			}
+		}
+	}
+
 	return in, true
 }
 
@@ -185,6 +227,30 @@ func (h *Handler) readAvatar(w http.ResponseWriter, fh *multipart.FileHeader) (*
 		return nil, false
 	}
 	return &NewAvatar{Ext: ext, Data: data}, true
+}
+
+func (h *Handler) readPhoto(w http.ResponseWriter, fh *multipart.FileHeader, order int16) (*NewPhoto, bool) {
+	if fh.Size > maxPhotoBytes {
+		httpx.Error(w, http.StatusRequestEntityTooLarge, "payload_too_large", "A highlight photo is too large (2 MB limit).")
+		return nil, false
+	}
+	f, err := fh.Open()
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid_request", "Could not read a highlight photo.")
+		return nil, false
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, maxPhotoBytes+1))
+	if err != nil || int64(len(data)) > maxPhotoBytes {
+		httpx.Error(w, http.StatusRequestEntityTooLarge, "payload_too_large", "A highlight photo is too large (2 MB limit).")
+		return nil, false
+	}
+	ext, ok := imageExt(data, fh.Filename)
+	if !ok {
+		httpx.Error(w, http.StatusBadRequest, "unsupported_media_type", "Highlight photos must be JPG, PNG or WebP.")
+		return nil, false
+	}
+	return &NewPhoto{Order: order, Ext: ext, Data: data}, true
 }
 
 // --- helpers ---------------------------------------------------------------

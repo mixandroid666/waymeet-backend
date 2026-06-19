@@ -11,6 +11,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countFollowers = `-- name: CountFollowers :one
+SELECT count(*) FROM follows WHERE followee_id = $1
+`
+
+func (q *Queries) CountFollowers(ctx context.Context, userID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countFollowers, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countFollowing = `-- name: CountFollowing :one
+SELECT count(*) FROM follows WHERE follower_id = $1
+`
+
+func (q *Queries) CountFollowing(ctx context.Context, userID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countFollowing, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, password_hash, display_name)
 VALUES ($1, $2, $3)
@@ -48,6 +70,15 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const deleteProfilePhotos = `-- name: DeleteProfilePhotos :exec
+DELETE FROM profile_photos WHERE user_id = $1
+`
+
+func (q *Queries) DeleteProfilePhotos(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteProfilePhotos, userID)
+	return err
 }
 
 const getProfile = `-- name: GetProfile :one
@@ -153,6 +184,48 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (GetUserByIDR
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const insertProfilePhoto = `-- name: InsertProfilePhoto :exec
+INSERT INTO profile_photos (user_id, photo_url, photo_order)
+VALUES ($1, $2, $3::smallint)
+`
+
+type InsertProfilePhotoParams struct {
+	UserID     pgtype.UUID `json:"user_id"`
+	PhotoUrl   string      `json:"photo_url"`
+	PhotoOrder int16       `json:"photo_order"`
+}
+
+func (q *Queries) InsertProfilePhoto(ctx context.Context, arg InsertProfilePhotoParams) error {
+	_, err := q.db.Exec(ctx, insertProfilePhoto, arg.UserID, arg.PhotoUrl, arg.PhotoOrder)
+	return err
+}
+
+const listProfilePhotos = `-- name: ListProfilePhotos :many
+SELECT photo_url FROM profile_photos
+WHERE user_id = $1
+ORDER BY photo_order
+`
+
+func (q *Queries) ListProfilePhotos(ctx context.Context, userID pgtype.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listProfilePhotos, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var photo_url string
+		if err := rows.Scan(&photo_url); err != nil {
+			return nil, err
+		}
+		items = append(items, photo_url)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateProfile = `-- name: UpdateProfile :one
