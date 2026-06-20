@@ -26,8 +26,8 @@ const (
 	maxImageBytes      = 3 << 20  // 3 MB per image (post-compression server guard)
 	maxVideoBytes      = 50 << 20 // 50 MB per video
 	maxMultipartMemory = 16 << 20 // keep up to 16 MB in memory; spill the rest to disk
-	// Hard cap on the whole request body, with headroom for field/boundary overhead.
-	maxRequestBytes = (MaxVideos * maxVideoBytes) + (MaxImages * maxImageBytes) + (4 << 20)
+	// Hard cap on the whole request body (worst case: all 8 slots are videos).
+	maxRequestBytes = (MaxMedia * maxVideoBytes) + (4 << 20)
 )
 
 // Handler exposes the feed HTTP endpoints. All routes are authenticated; the
@@ -51,6 +51,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/feed/posts/{id}/like", h.protected(h.like))
 	mux.Handle("DELETE /api/v1/feed/posts/{id}/like", h.protected(h.unlike))
 	mux.Handle("POST /api/v1/posts/create", h.protected(h.create))
+	mux.Handle("DELETE /api/v1/posts/{id}", h.protected(h.deletePost))
 	mux.Handle("GET /api/v1/users/{id}/posts", h.protected(h.userPosts))
 	mux.Handle("POST /api/v1/stories", h.protected(h.createStory))
 	mux.Handle("DELETE /api/v1/stories/{id}", h.protected(h.deleteStory))
@@ -94,9 +95,7 @@ type postDTO struct {
 	LikeCount     int64        `json:"like_count"`
 	CommentCount  int64        `json:"comment_count"`
 	LikedByViewer bool         `json:"liked_by_viewer"`
-	Images        []string     `json:"images"`
-	VideoURL      string       `json:"video_url,omitempty"`
-	Media         []mediaDTO   `json:"media,omitempty"`
+	Media         []mediaDTO   `json:"media"`
 	Location      *locationDTO `json:"location"`
 }
 
@@ -112,9 +111,9 @@ type storyMediaDTO struct {
 }
 
 type storyDTO struct {
-	Author   authorDTO      `json:"author"`
+	Author   authorDTO       `json:"author"`
 	Media    []storyMediaDTO `json:"media"`
-	LatestAt time.Time      `json:"latest_at"`
+	LatestAt time.Time       `json:"latest_at"`
 }
 
 type storiesResponse struct {
@@ -294,52 +293,62 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusCreated, postDTOOf(*post))
 }
 
+// deletePost handles DELETE /api/v1/posts/{id} - only the author may delete.
+func (h *Handler) deletePost(w http.ResponseWriter, r *http.Request) {
+	viewerID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized", "")
+		return
+	}
+	postID := r.PathValue("id")
+	if err := h.svc.DeletePost(r.Context(), postID, viewerID); err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // parseCreateInput reads and validates the multipart fields into a
 // CreatePostInput. On any validation failure it writes the error and returns
 // ok=false.
 func (h *Handler) parseCreateInput(w http.ResponseWriter, r *http.Request) (*CreatePostInput, bool) {
 	in := &CreatePostInput{Caption: r.FormValue("caption")}
 
-	imageHeaders := r.MultipartForm.File["images"]
-	videoHeaders := r.MultipartForm.File["video"]
+	mediaHeaders := r.MultipartForm.File["media"]
 
-	if len(imageHeaders) > MaxImages {
-		httpx.Error(w, http.StatusBadRequest, "too_many_images",
-			"A post can have at most 8 images.")
-		return nil, false
-	}
-	if len(videoHeaders) > MaxVideos {
-		httpx.Error(w, http.StatusBadRequest, "too_many_videos",
-			"A post can have at most 3 videos.")
+	if len(mediaHeaders) > MaxMedia {
+		httpx.Error(w, http.StatusBadRequest, "too_many_media",
+			"A post can have at most 8 media items.")
 		return nil, false
 	}
 
-	for _, fh := range imageHeaders {
-		data, ok := readUpload(w, fh, maxImageBytes, "An image")
-		if !ok {
-			return nil, false
+	for _, fh := range mediaHeaders {
+		ct := fh.Header.Get("Content-Type")
+		if strings.HasPrefix(ct, "image/") {
+			data, ok := readUpload(w, fh, maxImageBytes, "An image")
+			if !ok {
+				return nil, false
+			}
+			ext, ok := imageExt(data, fh.Filename)
+			if !ok {
+				httpx.Error(w, http.StatusBadRequest, "unsupported_media_type",
+					"Images must be JPG, PNG or WebP.")
+				return nil, false
+			}
+			in.Media = append(in.Media, NewMedia{Type: "image", Ext: ext, Data: data})
+		} else {
+			data, ok := readUpload(w, fh, maxVideoBytes, "A video")
+			if !ok {
+				return nil, false
+			}
+			ext, ok := videoExt(data, fh.Filename)
+			if !ok {
+				httpx.Error(w, http.StatusBadRequest, "unsupported_media_type",
+					"Videos must be MP4 or MOV.")
+				return nil, false
+			}
+			in.Media = append(in.Media, NewMedia{Type: "video", Ext: ext, Data: data})
 		}
-		ext, ok := imageExt(data, fh.Filename)
-		if !ok {
-			httpx.Error(w, http.StatusBadRequest, "unsupported_media_type",
-				"Images must be JPG, PNG or WebP.")
-			return nil, false
-		}
-		in.Images = append(in.Images, NewMedia{Type: "image", Ext: ext, Data: data})
-	}
-
-	for _, fh := range videoHeaders {
-		data, ok := readUpload(w, fh, maxVideoBytes, "A video")
-		if !ok {
-			return nil, false
-		}
-		ext, ok := videoExt(data, fh.Filename)
-		if !ok {
-			httpx.Error(w, http.StatusBadRequest, "unsupported_media_type",
-				"Videos must be MP4 or MOV.")
-			return nil, false
-		}
-		in.Videos = append(in.Videos, NewMedia{Type: "video", Ext: ext, Data: data})
 	}
 
 	loc, ok := parseLocation(w, r)
@@ -353,7 +362,7 @@ func (h *Handler) parseCreateInput(w http.ResponseWriter, r *http.Request) (*Cre
 			"Caption must be 2000 characters or fewer.")
 		return nil, false
 	}
-	if strings.TrimSpace(in.Caption) == "" && len(in.Images) == 0 && len(in.Videos) == 0 {
+	if strings.TrimSpace(in.Caption) == "" && len(in.Media) == 0 {
 		httpx.Error(w, http.StatusBadRequest, "empty_post",
 			"Add a caption or some media before posting.")
 		return nil, false
@@ -665,12 +674,7 @@ func (h *Handler) setCommentLike(w http.ResponseWriter, r *http.Request, liked b
 // --- helpers ---------------------------------------------------------------
 
 func postDTOOf(p Post) postDTO {
-	images := p.ImageURLs
-	if images == nil {
-		images = []string{}
-	}
-
-	var media []mediaDTO
+	media := make([]mediaDTO, 0, len(p.Media))
 	for _, m := range p.Media {
 		media = append(media, mediaDTO{ID: m.ID, Type: m.Type, URL: m.URL, Order: m.Order})
 	}
@@ -692,8 +696,6 @@ func postDTOOf(p Post) postDTO {
 		LikeCount:     p.LikeCount,
 		CommentCount:  p.CommentCount,
 		LikedByViewer: p.LikedByViewer,
-		Images:        images,
-		VideoURL:      p.VideoURL,
 		Media:         media,
 		Location:      loc,
 	}
@@ -720,12 +722,8 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 		httpx.Error(w, http.StatusBadRequest, "caption_too_long", "Caption must be 2000 characters or fewer.")
 	case errors.Is(err, ErrEmptyPost):
 		httpx.Error(w, http.StatusBadRequest, "empty_post", "Add a caption or some media before posting.")
-	case errors.Is(err, ErrTooManyImages):
-		httpx.Error(w, http.StatusBadRequest, "too_many_images", "A post can have at most 8 images.")
-	case errors.Is(err, ErrTooManyVideos):
-		httpx.Error(w, http.StatusBadRequest, "too_many_videos", "A post can have at most 3 videos.")
-	case errors.Is(err, ErrImagesAndVideo):
-		httpx.Error(w, http.StatusBadRequest, "images_and_video", "A post can have images or one video, not both.")
+	case errors.Is(err, ErrTooManyMedia):
+		httpx.Error(w, http.StatusBadRequest, "too_many_media", "A post can have at most 8 media items.")
 	case errors.Is(err, ErrInvalidLocation):
 		httpx.Error(w, http.StatusBadRequest, "invalid_location", "The location coordinates are invalid.")
 	case errors.Is(err, ErrRateLimited):

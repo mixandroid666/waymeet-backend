@@ -261,6 +261,20 @@ func (q *Queries) DeleteOwnStory(ctx context.Context, arg DeleteOwnStoryParams) 
 	return err
 }
 
+const deleteOwnPost = `-- name: DeleteOwnPost :exec
+DELETE FROM posts WHERE id = $1 AND author_id = $2
+`
+
+type DeleteOwnPostParams struct {
+	ID       pgtype.UUID `json:"id"`
+	AuthorID pgtype.UUID `json:"author_id"`
+}
+
+func (q *Queries) DeleteOwnPost(ctx context.Context, arg DeleteOwnPostParams) error {
+	_, err := q.db.Exec(ctx, deleteOwnPost, arg.ID, arg.AuthorID)
+	return err
+}
+
 const likeComment = `-- name: LikeComment :exec
 INSERT INTO comment_likes (comment_id, user_id)
 VALUES ($1, $2)
@@ -438,16 +452,11 @@ SELECT
         SELECT 1 FROM post_likes l
         WHERE l.post_id = p.id AND l.user_id = $1
     ) AS liked_by_viewer,
-    ARRAY(
-        SELECT m.media_url FROM post_media m
-        WHERE m.post_id = p.id AND m.media_type = 'image'
-        ORDER BY m.media_order
-    )::text[] AS image_urls,
-    COALESCE((
-        SELECT m.media_url FROM post_media m
-        WHERE m.post_id = p.id AND m.media_type = 'video'
-        ORDER BY m.media_order LIMIT 1
-    ), '')::text AS video_url,
+    COALESCE(
+        (SELECT json_agg(json_build_object('type', m.media_type, 'url', m.media_url) ORDER BY m.media_order)
+         FROM post_media m WHERE m.post_id = p.id),
+        '[]'::json
+    ) AS media_items,
     loc.latitude      AS loc_latitude,
     loc.longitude     AS loc_longitude,
     loc.location_name AS loc_name
@@ -474,8 +483,7 @@ type ListGlobalTimelineRow struct {
 	LikeCount       int64              `json:"like_count"`
 	CommentCount    int64              `json:"comment_count"`
 	LikedByViewer   bool               `json:"liked_by_viewer"`
-	ImageUrls       []string           `json:"image_urls"`
-	VideoUrl        string             `json:"video_url"`
+	MediaItems      []byte             `json:"media_items"`
 	LocLatitude     *float64           `json:"loc_latitude"`
 	LocLongitude    *float64           `json:"loc_longitude"`
 	LocName         *string            `json:"loc_name"`
@@ -502,8 +510,7 @@ func (q *Queries) ListGlobalTimeline(ctx context.Context, arg ListGlobalTimeline
 			&i.LikeCount,
 			&i.CommentCount,
 			&i.LikedByViewer,
-			&i.ImageUrls,
-			&i.VideoUrl,
+			&i.MediaItems,
 			&i.LocLatitude,
 			&i.LocLongitude,
 			&i.LocName,
@@ -532,16 +539,11 @@ SELECT
         SELECT 1 FROM post_likes l
         WHERE l.post_id = p.id AND l.user_id = $1
     ) AS liked_by_viewer,
-    ARRAY(
-        SELECT m.media_url FROM post_media m
-        WHERE m.post_id = p.id AND m.media_type = 'image'
-        ORDER BY m.media_order
-    )::text[] AS image_urls,
-    COALESCE((
-        SELECT m.media_url FROM post_media m
-        WHERE m.post_id = p.id AND m.media_type = 'video'
-        ORDER BY m.media_order LIMIT 1
-    ), '')::text AS video_url,
+    COALESCE(
+        (SELECT json_agg(json_build_object('type', m.media_type, 'url', m.media_url) ORDER BY m.media_order)
+         FROM post_media m WHERE m.post_id = p.id),
+        '[]'::json
+    ) AS media_items,
     loc.latitude      AS loc_latitude,
     loc.longitude     AS loc_longitude,
     loc.location_name AS loc_name
@@ -572,8 +574,7 @@ type ListHomeTimelineRow struct {
 	LikeCount       int64              `json:"like_count"`
 	CommentCount    int64              `json:"comment_count"`
 	LikedByViewer   bool               `json:"liked_by_viewer"`
-	ImageUrls       []string           `json:"image_urls"`
-	VideoUrl        string             `json:"video_url"`
+	MediaItems      []byte             `json:"media_items"`
 	LocLatitude     *float64           `json:"loc_latitude"`
 	LocLongitude    *float64           `json:"loc_longitude"`
 	LocName         *string            `json:"loc_name"`
@@ -581,7 +582,7 @@ type ListHomeTimelineRow struct {
 
 // Fan-out-on-read timeline: posts by the viewer and everyone they follow.
 // Each row carries its author, denormalized counts, the viewer's like state,
-// image URLs (ordered), an optional video URL, and an optional location.
+// all media in global order, and an optional location.
 func (q *Queries) ListHomeTimeline(ctx context.Context, arg ListHomeTimelineParams) ([]ListHomeTimelineRow, error) {
 	rows, err := q.db.Query(ctx, listHomeTimeline, arg.ViewerID, arg.Off, arg.Lim)
 	if err != nil {
@@ -601,8 +602,7 @@ func (q *Queries) ListHomeTimeline(ctx context.Context, arg ListHomeTimelinePara
 			&i.LikeCount,
 			&i.CommentCount,
 			&i.LikedByViewer,
-			&i.ImageUrls,
-			&i.VideoUrl,
+			&i.MediaItems,
 			&i.LocLatitude,
 			&i.LocLongitude,
 			&i.LocName,
@@ -631,16 +631,11 @@ SELECT
         SELECT 1 FROM post_likes l
         WHERE l.post_id = p.id AND l.user_id = $1
     ) AS liked_by_viewer,
-    ARRAY(
-        SELECT m.media_url FROM post_media m
-        WHERE m.post_id = p.id AND m.media_type = 'image'
-        ORDER BY m.media_order
-    )::text[] AS image_urls,
-    COALESCE((
-        SELECT m.media_url FROM post_media m
-        WHERE m.post_id = p.id AND m.media_type = 'video'
-        ORDER BY m.media_order LIMIT 1
-    ), '')::text AS video_url,
+    COALESCE(
+        (SELECT json_agg(json_build_object('type', m.media_type, 'url', m.media_url) ORDER BY m.media_order)
+         FROM post_media m WHERE m.post_id = p.id),
+        '[]'::json
+    ) AS media_items,
     loc.latitude      AS loc_latitude,
     loc.longitude     AS loc_longitude,
     loc.location_name AS loc_name
@@ -669,8 +664,7 @@ type ListUserPostsRow struct {
 	LikeCount       int64              `json:"like_count"`
 	CommentCount    int64              `json:"comment_count"`
 	LikedByViewer   bool               `json:"liked_by_viewer"`
-	ImageUrls       []string           `json:"image_urls"`
-	VideoUrl        string             `json:"video_url"`
+	MediaItems      []byte             `json:"media_items"`
 	LocLatitude     *float64           `json:"loc_latitude"`
 	LocLongitude    *float64           `json:"loc_longitude"`
 	LocName         *string            `json:"loc_name"`
@@ -701,8 +695,7 @@ func (q *Queries) ListUserPosts(ctx context.Context, arg ListUserPostsParams) ([
 			&i.LikeCount,
 			&i.CommentCount,
 			&i.LikedByViewer,
-			&i.ImageUrls,
-			&i.VideoUrl,
+			&i.MediaItems,
 			&i.LocLatitude,
 			&i.LocLongitude,
 			&i.LocName,

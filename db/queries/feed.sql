@@ -27,7 +27,7 @@ RETURNING id, post_id, latitude, longitude, location_name, created_at;
 -- name: ListHomeTimeline :many
 -- Fan-out-on-read timeline: posts by the viewer and everyone they follow.
 -- Each row carries its author, denormalized counts, the viewer's like state,
--- image URLs (ordered), an optional video URL, and an optional location.
+-- all media in global order as a JSON array, and an optional location.
 SELECT
     p.id,
     p.author_id,
@@ -41,16 +41,11 @@ SELECT
         SELECT 1 FROM post_likes l
         WHERE l.post_id = p.id AND l.user_id = sqlc.arg(viewer_id)
     ) AS liked_by_viewer,
-    ARRAY(
-        SELECT m.media_url FROM post_media m
-        WHERE m.post_id = p.id AND m.media_type = 'image'
-        ORDER BY m.media_order
-    )::text[] AS image_urls,
-    COALESCE((
-        SELECT m.media_url FROM post_media m
-        WHERE m.post_id = p.id AND m.media_type = 'video'
-        ORDER BY m.media_order LIMIT 1
-    ), '')::text AS video_url,
+    COALESCE(
+        (SELECT json_agg(json_build_object('type', m.media_type, 'url', m.media_url) ORDER BY m.media_order)
+         FROM post_media m WHERE m.post_id = p.id),
+        '[]'::json
+    ) AS media_items,
     loc.latitude      AS loc_latitude,
     loc.longitude     AS loc_longitude,
     loc.location_name AS loc_name
@@ -80,16 +75,11 @@ SELECT
         SELECT 1 FROM post_likes l
         WHERE l.post_id = p.id AND l.user_id = sqlc.arg(viewer_id)
     ) AS liked_by_viewer,
-    ARRAY(
-        SELECT m.media_url FROM post_media m
-        WHERE m.post_id = p.id AND m.media_type = 'image'
-        ORDER BY m.media_order
-    )::text[] AS image_urls,
-    COALESCE((
-        SELECT m.media_url FROM post_media m
-        WHERE m.post_id = p.id AND m.media_type = 'video'
-        ORDER BY m.media_order LIMIT 1
-    ), '')::text AS video_url,
+    COALESCE(
+        (SELECT json_agg(json_build_object('type', m.media_type, 'url', m.media_url) ORDER BY m.media_order)
+         FROM post_media m WHERE m.post_id = p.id),
+        '[]'::json
+    ) AS media_items,
     loc.latitude      AS loc_latitude,
     loc.longitude     AS loc_longitude,
     loc.location_name AS loc_name
@@ -123,6 +113,9 @@ RETURNING id, author_id, media_url, media_type, created_at, expires_at;
 
 -- name: DeleteOwnStory :exec
 DELETE FROM stories WHERE id = $1 AND author_id = $2;
+
+-- name: DeleteOwnPost :exec
+DELETE FROM posts WHERE id = $1 AND author_id = $2;
 
 -- name: ListComments :many
 SELECT
@@ -178,16 +171,11 @@ SELECT
         SELECT 1 FROM post_likes l
         WHERE l.post_id = p.id AND l.user_id = sqlc.arg(viewer_id)
     ) AS liked_by_viewer,
-    ARRAY(
-        SELECT m.media_url FROM post_media m
-        WHERE m.post_id = p.id AND m.media_type = 'image'
-        ORDER BY m.media_order
-    )::text[] AS image_urls,
-    COALESCE((
-        SELECT m.media_url FROM post_media m
-        WHERE m.post_id = p.id AND m.media_type = 'video'
-        ORDER BY m.media_order LIMIT 1
-    ), '')::text AS video_url,
+    COALESCE(
+        (SELECT json_agg(json_build_object('type', m.media_type, 'url', m.media_url) ORDER BY m.media_order)
+         FROM post_media m WHERE m.post_id = p.id),
+        '[]'::json
+    ) AS media_items,
     loc.latitude      AS loc_latitude,
     loc.longitude     AS loc_longitude,
     loc.location_name AS loc_name

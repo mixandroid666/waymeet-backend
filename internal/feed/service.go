@@ -3,8 +3,10 @@ package feed
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -56,9 +58,7 @@ type Post struct {
 	LikeCount       int64
 	CommentCount    int64
 	LikedByViewer   bool
-	ImageURLs       []string
-	VideoURL        string        // "" when the post has no video
-	Media           []PostMedia   // typed media (set on create; nil on timeline)
+	Media           []PostMedia   // all media in global upload order
 	Location        *PostLocation // nil when the post has no location
 }
 
@@ -151,8 +151,7 @@ func (s *Service) HomeFeed(ctx context.Context, viewerID string, limit, offset i
 			LikeCount:       r.LikeCount,
 			CommentCount:    r.CommentCount,
 			LikedByViewer:   r.LikedByViewer,
-			ImageURLs:       r.ImageUrls,
-			VideoURL:        r.VideoUrl,
+			Media:           parseMediaItems(r.MediaItems),
 			Location:        locationOf(r.LocLatitude, r.LocLongitude, r.LocName),
 		})
 	}
@@ -189,8 +188,7 @@ func (s *Service) HomeFeed(ctx context.Context, viewerID string, limit, offset i
 				LikeCount:       r.LikeCount,
 				CommentCount:    r.CommentCount,
 				LikedByViewer:   r.LikedByViewer,
-				ImageURLs:       r.ImageUrls,
-				VideoURL:        r.VideoUrl,
+				Media:           parseMediaItems(r.MediaItems),
 				Location:        locationOf(r.LocLatitude, r.LocLongitude, r.LocName),
 			})
 		}
@@ -269,8 +267,7 @@ func (s *Service) UserPosts(ctx context.Context, authorID, viewerID string, limi
 			LikeCount:       r.LikeCount,
 			CommentCount:    r.CommentCount,
 			LikedByViewer:   r.LikedByViewer,
-			ImageURLs:       r.ImageUrls,
-			VideoURL:        r.VideoUrl,
+			Media:           parseMediaItems(r.MediaItems),
 			Location:        locationOf(r.LocLatitude, r.LocLongitude, r.LocName),
 		})
 	}
@@ -301,6 +298,35 @@ func (s *Service) UnlikePost(ctx context.Context, viewerID, postID string) error
 		return ErrInvalidPostID
 	}
 	return s.db.Queries.UnlikePost(ctx, dbgen.UnlikePostParams{PostID: post, UserID: viewer})
+}
+
+// DeletePost removes one of the caller's own posts and cleans up its stored media.
+func (s *Service) DeletePost(ctx context.Context, postID, authorID string) error {
+	pid, err := parseUUID(postID)
+	if err != nil {
+		return ErrInvalidPostID
+	}
+	aid, err := parseUUID(authorID)
+	if err != nil {
+		return err
+	}
+
+	tx, err := s.db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	q := s.db.Queries.WithTx(tx)
+
+	if err := q.DeleteOwnPost(ctx, dbgen.DeleteOwnPostParams{ID: pid, AuthorID: aid}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+
+	s.removePostMedia(uuidString(pid))
+	return nil
 }
 
 // CreateStory stores the media file and inserts a story row with a 24-hour TTL.
@@ -496,6 +522,26 @@ func (s *Service) UnlikeComment(ctx context.Context, commentID, viewerID string)
 
 // --- helpers ---------------------------------------------------------------
 
+// parseMediaItems decodes the JSON media array returned by the timeline queries
+// into a typed slice ordered by position in the JSON (= media_order in the DB).
+func parseMediaItems(data []byte) []PostMedia {
+	if len(data) == 0 {
+		return nil
+	}
+	var raw []struct {
+		Type string `json:"type"`
+		URL  string `json:"url"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil
+	}
+	media := make([]PostMedia, 0, len(raw))
+	for i, m := range raw {
+		media = append(media, PostMedia{Type: m.Type, URL: m.URL, Order: i + 1})
+	}
+	return media
+}
+
 func clampLimit(limit int32) int32 {
 	if limit <= 0 {
 		return defaultLimit
@@ -521,6 +567,12 @@ func deref(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+func (s *Service) removePostMedia(postID string) {
+	if err := s.media.RemoveAll("posts/" + strings.TrimSpace(postID)); err != nil {
+		s.log.Error("cleanup post media failed", "err", err, "post", postID)
+	}
 }
 
 // locationOf builds a *PostLocation from the nullable timeline columns, or nil

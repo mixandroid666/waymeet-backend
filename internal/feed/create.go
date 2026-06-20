@@ -18,17 +18,14 @@ import (
 // Limits enforced by the service (the handler enforces byte sizes up front).
 const (
 	MaxCaptionLen = 2000
-	MaxImages     = 8
-	MaxVideos     = 3
+	MaxMedia      = 8 // total images + videos per post
 )
 
 // Domain errors for post creation. The handler maps these to HTTP status codes.
 var (
 	ErrCaptionTooLong  = errors.New("caption exceeds the maximum length")
 	ErrEmptyPost       = errors.New("a post needs a caption or media")
-	ErrTooManyImages   = errors.New("too many images")
-	ErrTooManyVideos   = errors.New("too many videos")
-	ErrImagesAndVideo  = errors.New("a post can have images or one video, not both")
+	ErrTooManyMedia    = errors.New("too many media items")
 	ErrInvalidLocation = errors.New("invalid location coordinates")
 	ErrRateLimited     = errors.New("posting too quickly")
 )
@@ -50,8 +47,7 @@ type NewLocation struct {
 // CreatePostInput is the validated, decoded create-post request.
 type CreatePostInput struct {
 	Caption  string
-	Images   []NewMedia
-	Videos   []NewMedia
+	Media    []NewMedia // images and videos in global upload order
 	Location *NewLocation
 }
 
@@ -68,13 +64,10 @@ func (s *Service) CreatePost(ctx context.Context, authorID string, in CreatePost
 	if len([]rune(caption)) > MaxCaptionLen {
 		return nil, ErrCaptionTooLong
 	}
-	if len(in.Images) > MaxImages {
-		return nil, ErrTooManyImages
+	if len(in.Media) > MaxMedia {
+		return nil, ErrTooManyMedia
 	}
-	if len(in.Videos) > MaxVideos {
-		return nil, ErrTooManyVideos
-	}
-	hasMedia := len(in.Videos) > 0 || len(in.Images) > 0
+	hasMedia := len(in.Media) > 0
 	if caption == "" && !hasMedia {
 		return nil, ErrEmptyPost
 	}
@@ -122,7 +115,7 @@ func (s *Service) CreatePost(ctx context.Context, authorID string, in CreatePost
 		ID:          postID,
 		AuthorID:    author,
 		Body:        caption,
-		MediaCount:  int16(len(media)),
+		MediaCount:  int16(len(in.Media)),
 		HasLocation: in.Location != nil,
 	})
 	if err != nil {
@@ -174,27 +167,18 @@ func (s *Service) CreatePost(ctx context.Context, authorID string, in CreatePost
 	return s.assembleCreatedPost(ctx, idStr, authorID, author, caption, row.CreatedAt.Time, media, loc), nil
 }
 
-// storeMedia writes each upload to the media store and returns the resulting
-// PostMedia entries (URLs filled, IDs assigned later after the DB insert).
+// storeMedia writes each upload to the media store in global order and returns
+// the resulting PostMedia entries (URLs filled, IDs assigned later after the DB insert).
 func (s *Service) storeMedia(prefix string, in CreatePostInput) ([]PostMedia, error) {
-	media := make([]PostMedia, 0, len(in.Images)+len(in.Videos))
-	for i := range in.Images {
+	media := make([]PostMedia, 0, len(in.Media))
+	for i := range in.Media {
 		order := i + 1
-		key := fmt.Sprintf("%s/image_%d%s", prefix, order, in.Images[i].Ext)
-		url, err := s.media.Save(key, bytes.NewReader(in.Images[i].Data))
+		key := fmt.Sprintf("%s/media_%d%s", prefix, order, in.Media[i].Ext)
+		url, err := s.media.Save(key, bytes.NewReader(in.Media[i].Data))
 		if err != nil {
-			return nil, fmt.Errorf("save image: %w", err)
+			return nil, fmt.Errorf("save media: %w", err)
 		}
-		media = append(media, PostMedia{Type: "image", URL: url, Order: order})
-	}
-	for i := range in.Videos {
-		order := len(in.Images) + i + 1
-		key := fmt.Sprintf("%s/video_%d%s", prefix, i+1, in.Videos[i].Ext)
-		url, err := s.media.Save(key, bytes.NewReader(in.Videos[i].Data))
-		if err != nil {
-			return nil, fmt.Errorf("save video: %w", err)
-		}
-		media = append(media, PostMedia{Type: "video", URL: url, Order: order})
+		media = append(media, PostMedia{Type: in.Media[i].Type, URL: url, Order: order})
 	}
 	return media, nil
 }
@@ -216,19 +200,6 @@ func (s *Service) assembleCreatedPost(
 		avatar = deref(prof.AvatarUrl)
 	}
 
-	var imageURLs []string
-	videoURL := ""
-	for _, m := range media {
-		switch m.Type {
-		case "image":
-			imageURLs = append(imageURLs, m.URL)
-		case "video":
-			if videoURL == "" {
-				videoURL = m.URL
-			}
-		}
-	}
-
 	return &Post{
 		ID:              idStr,
 		AuthorID:        authorID,
@@ -239,8 +210,6 @@ func (s *Service) assembleCreatedPost(
 		LikeCount:       0,
 		CommentCount:    0,
 		LikedByViewer:   false,
-		ImageURLs:       imageURLs,
-		VideoURL:        videoURL,
 		Media:           media,
 		Location:        loc,
 	}
