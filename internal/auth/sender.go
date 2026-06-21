@@ -31,7 +31,7 @@ type LogSender struct {
 func NewLogSender(log *slog.Logger) LogSender { return LogSender{log: log} }
 
 func (s LogSender) SendOTP(_ context.Context, contact, code string) error {
-	s.log.Info("otp issued (dev — not actually sent)", "contact", contact, "code", code)
+	s.log.Info("otp issued (dev â€” not actually sent)", "contact", contact, "code", code)
 	return nil
 }
 
@@ -68,8 +68,8 @@ func (s ResendSender) SendOTP(ctx context.Context, contact, code string) error {
 	body, err := json.Marshal(map[string]any{
 		"from":    s.from,
 		"to":      []string{contact},
-		"subject": "Your Ruammit verification code",
-		"text":    fmt.Sprintf("Your Ruammit verification code is %s.\n\nIt expires in 10 minutes. If you didn't request this, you can ignore this email.", code),
+		"subject": "Your Waymeet verification code",
+		"text":    fmt.Sprintf("Your Waymeet verification code is %s.\n\nIt expires in 10 minutes. If you didn't request this, you can ignore this email.", code),
 	})
 	if err != nil {
 		return fmt.Errorf("resend: marshal request: %w", err)

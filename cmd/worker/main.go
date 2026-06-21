@@ -12,12 +12,12 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"ruammit-backend/internal/platform/config"
-	"ruammit-backend/internal/platform/logging"
+	"waymeet-backend/internal/platform/config"
+	"waymeet-backend/internal/platform/logging"
 )
 
 func main() {
-	// Load .env into the environment for local dev. Missing file is fine —
+	// Load .env into the environment for local dev. Missing file is fine â€”
 	// in production, config comes from real environment variables.
 	_ = godotenv.Load()
 

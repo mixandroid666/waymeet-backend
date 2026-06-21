@@ -11,9 +11,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"ruammit-backend/internal/platform/mediastore"
-	"ruammit-backend/internal/platform/storage"
-	"ruammit-backend/internal/platform/storage/dbgen"
+	"waymeet-backend/internal/platform/mediastore"
+	"waymeet-backend/internal/platform/storage"
+	"waymeet-backend/internal/platform/storage/dbgen"
 )
 
 // Tunables for timeline paging.
@@ -27,7 +27,7 @@ const (
 )
 
 // Service implements the feed use cases: the home timeline, the story strip,
-// likes and post creation. It has no idea HTTP exists — the handler adapts it
+// likes and post creation. It has no idea HTTP exists â€” the handler adapts it
 // to the web.
 type Service struct {
 	db    *storage.DB

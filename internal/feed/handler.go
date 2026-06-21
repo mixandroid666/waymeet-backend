@@ -12,15 +12,15 @@ import (
 	"strings"
 	"time"
 
-	"ruammit-backend/internal/auth"
-	"ruammit-backend/internal/platform/httpx"
+	"waymeet-backend/internal/auth"
+	"waymeet-backend/internal/platform/httpx"
 )
 
 // Domain errors mapped to HTTP responses by the handler.
 var ErrInvalidPostID = errors.New("invalid post id")
 
 // Upload limits enforced by the handler.
-// Images arrive pre-compressed (WebP ≤ 80 % quality, ≤ 1080 px) so 3 MB is a
+// Images arrive pre-compressed (WebP â‰¤ 80 % quality, â‰¤ 1080 px) so 3 MB is a
 // generous server-side hard cap; the client-side limit is 20 MB pre-compression.
 const (
 	maxImageBytes      = 3 << 20  // 3 MB per image (post-compression server guard)
@@ -261,7 +261,7 @@ func (h *Handler) setLike(w http.ResponseWriter, r *http.Request, liked bool) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// create handles POST /api/v1/posts/create — a multipart/form-data request with
+// create handles POST /api/v1/posts/create â€” a multipart/form-data request with
 // a caption, optional images[] (up to 8), an optional single video (both may
 // be present simultaneously), and an optional location.
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
@@ -477,7 +477,7 @@ func videoExt(data []byte, filename string) (string, bool) {
 	return "", false
 }
 
-// createStory handles POST /api/v1/stories — multipart with a single "media" file.
+// createStory handles POST /api/v1/stories â€” multipart with a single "media" file.
 func (h *Handler) createStory(w http.ResponseWriter, r *http.Request) {
 	viewerID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -539,7 +539,7 @@ func (h *Handler) createStory(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// deleteStory handles DELETE /api/v1/stories/{id} — only the author may delete.
+// deleteStory handles DELETE /api/v1/stories/{id} â€” only the author may delete.
 func (h *Handler) deleteStory(w http.ResponseWriter, r *http.Request) {
 	viewerID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {

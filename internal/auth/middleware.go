@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"ruammit-backend/internal/platform/httpx"
+	"waymeet-backend/internal/platform/httpx"
 )
 
 type ctxKey int

@@ -1,29 +1,29 @@
--- Demo seed data for the Ruammit feed (travel social app).
+﻿-- Demo seed data for the Waymeet feed (travel social app).
 --
 -- Safe to run repeatedly: every row uses a fixed UUID and the script upserts
 -- users / re-inserts posts, so re-running resets the demo content without
 -- touching real accounts created through the app.
 --
 -- Login for any seeded account:  password = "password123"
--- The "You" demo account:        demo@ruammit.app
+-- The "You" demo account:        demo@waymeet.app
 --
 -- Apply with:  make seed     (or)   psql "$DATABASE_URL" -f db/seed/0001_demo_feed.sql
 
 BEGIN;
 
 -- 1. Demo users -------------------------------------------------------------
--- All share the same bcrypt hash of "password123". `demo@ruammit.app` is the
+-- All share the same bcrypt hash of "password123". `demo@waymeet.app` is the
 -- account you log in as to see a populated home timeline (it follows the rest).
 INSERT INTO users (id, email, password_hash, display_name, avatar_url, bio, gender, birth_date, status, verified_at)
 VALUES
-  ('00000000-0000-0000-0000-000000000001', 'demo@ruammit.app',  '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'You',          'https://i.pravatar.cc/300?u=ruammit-demo',  'Exploring one city at a time.',          'other',  '1996-04-12', 'active', now()),
-  ('00000000-0000-0000-0000-000000000002', 'maya@ruammit.app',  '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'Maya Wanders', 'https://i.pravatar.cc/300?u=ruammit-maya',  'Solo traveler · 38 countries and counting.', 'female', '1994-09-02', 'active', now()),
-  ('00000000-0000-0000-0000-000000000003', 'kenji@ruammit.app', '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'Kenji Tan',    'https://i.pravatar.cc/300?u=ruammit-kenji', 'Street food hunter from Bangkok.',       'male',   '1992-01-25', 'active', now()),
-  ('00000000-0000-0000-0000-000000000004', 'aroon@ruammit.app', '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'Aroon Pol',    'https://i.pravatar.cc/300?u=ruammit-aroon', 'Mountains > everything. Chiang Mai based.', 'male',  '1990-11-08', 'active', now()),
-  ('00000000-0000-0000-0000-000000000005', 'sofia@ruammit.app', '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'Sofia Reyes',  'https://i.pravatar.cc/300?u=ruammit-sofia', 'Beaches, boats and sunsets.',            'female', '1997-06-19', 'active', now()),
-  ('00000000-0000-0000-0000-000000000006', 'liam@ruammit.app',  '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'Liam Ferraro', 'https://i.pravatar.cc/300?u=ruammit-liam',  'Backpacker. Coffee snob. Map nerd.',     'male',   '1993-03-30', 'active', now()),
-  ('00000000-0000-0000-0000-000000000007', 'nok@ruammit.app',   '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'Nok Chai',     'https://i.pravatar.cc/300?u=ruammit-nok',   'Temples, markets, and slow mornings.',   'female', '1995-12-14', 'active', now()),
-  ('00000000-0000-0000-0000-000000000008', 'hana@ruammit.app',  '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'Hana Sato',    'https://i.pravatar.cc/300?u=ruammit-hana',  'Photographer chasing golden hour.',      'female', '1991-08-21', 'active', now())
+  ('00000000-0000-0000-0000-000000000001', 'demo@waymeet.app',  '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'You',          'https://i.pravatar.cc/300?u=Waymeet-demo',  'Exploring one city at a time.',          'other',  '1996-04-12', 'active', now()),
+  ('00000000-0000-0000-0000-000000000002', 'maya@waymeet.app',  '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'Maya Wanders', 'https://i.pravatar.cc/300?u=Waymeet-maya',  'Solo traveler Â· 38 countries and counting.', 'female', '1994-09-02', 'active', now()),
+  ('00000000-0000-0000-0000-000000000003', 'kenji@waymeet.app', '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'Kenji Tan',    'https://i.pravatar.cc/300?u=Waymeet-kenji', 'Street food hunter from Bangkok.',       'male',   '1992-01-25', 'active', now()),
+  ('00000000-0000-0000-0000-000000000004', 'aroon@waymeet.app', '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'Aroon Pol',    'https://i.pravatar.cc/300?u=Waymeet-aroon', 'Mountains > everything. Chiang Mai based.', 'male',  '1990-11-08', 'active', now()),
+  ('00000000-0000-0000-0000-000000000005', 'sofia@waymeet.app', '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'Sofia Reyes',  'https://i.pravatar.cc/300?u=Waymeet-sofia', 'Beaches, boats and sunsets.',            'female', '1997-06-19', 'active', now()),
+  ('00000000-0000-0000-0000-000000000006', 'liam@waymeet.app',  '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'Liam Ferraro', 'https://i.pravatar.cc/300?u=Waymeet-liam',  'Backpacker. Coffee snob. Map nerd.',     'male',   '1993-03-30', 'active', now()),
+  ('00000000-0000-0000-0000-000000000007', 'nok@waymeet.app',   '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'Nok Chai',     'https://i.pravatar.cc/300?u=Waymeet-nok',   'Temples, markets, and slow mornings.',   'female', '1995-12-14', 'active', now()),
+  ('00000000-0000-0000-0000-000000000008', 'hana@waymeet.app',  '$2a$10$BBAyh8Ui11KHuJyYjmK8x.y0OK8147nnahaCjBWynP4tt5a8FFufG', 'Hana Sato',    'https://i.pravatar.cc/300?u=Waymeet-hana',  'Photographer chasing golden hour.',      'female', '1991-08-21', 'active', now())
 ON CONFLICT (id) DO UPDATE SET
   email         = EXCLUDED.email,
   password_hash = EXCLUDED.password_hash,
@@ -73,11 +73,11 @@ DELETE FROM posts WHERE id IN (
 );
 
 INSERT INTO posts (id, author_id, body, created_at) VALUES
-  ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'Sunrise over Bagan from a hot air balloon — no photo does it justice. Worth every 4am alarm. 🎈 #myanmar #travel', now() - interval '35 minutes'),
+  ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'Sunrise over Bagan from a hot air balloon â€” no photo does it justice. Worth every 4am alarm. ðŸŽˆ #myanmar #travel', now() - interval '35 minutes'),
   ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003', 'Best plate of pad kra pao I have had all year, from a tiny cart in Chinatown. 60 baht of pure joy.', now() - interval '1 hour 20 minutes'),
   ('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000004', 'Two days trekking in Pai and the fog this morning made it feel like another planet.', now() - interval '2 hours 5 minutes'),
   ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000005', 'Island hopping around Krabi today. Found a beach with literally nobody else on it.', now() - interval '3 hours 40 minutes'),
-  ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000006', 'Hot take: the best travel days are the unplanned ones. Missed my bus, met three new friends, ended up here. ☕', now() - interval '5 hours'),
+  ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000006', 'Hot take: the best travel days are the unplanned ones. Missed my bus, met three new friends, ended up here. â˜•', now() - interval '5 hours'),
   ('a0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000007', 'Morning alms round in Luang Prabang. Quiet, humbling, unforgettable.', now() - interval '7 hours 15 minutes'),
   ('a0000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000008', 'Golden hour at Angkor Wat. Showed up at 5am with my tripod and it paid off.', now() - interval '9 hours'),
   ('a0000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000002', 'Packing list reality check: I used maybe 40% of what I brought. Less is more, every single time.', now() - interval '11 hours'),
@@ -93,32 +93,32 @@ INSERT INTO posts (id, author_id, body, created_at) VALUES
 -- 1-4 images so both the single-image and slider states render; post 8 is a
 -- video-only post so the feed's video state is exercised too.
 INSERT INTO post_media (post_id, media_type, media_url, media_order) VALUES
-  ('a0000000-0000-0000-0000-000000000001', 'image', 'https://picsum.photos/seed/ruammit-p1a/800/600', 1),
-  ('a0000000-0000-0000-0000-000000000001', 'image', 'https://picsum.photos/seed/ruammit-p1b/800/600', 2),
-  ('a0000000-0000-0000-0000-000000000001', 'image', 'https://picsum.photos/seed/ruammit-p1c/800/600', 3),
-  ('a0000000-0000-0000-0000-000000000002', 'image', 'https://picsum.photos/seed/ruammit-p2a/800/600', 1),
-  ('a0000000-0000-0000-0000-000000000003', 'image', 'https://picsum.photos/seed/ruammit-p3a/800/600', 1),
-  ('a0000000-0000-0000-0000-000000000003', 'image', 'https://picsum.photos/seed/ruammit-p3b/800/600', 2),
-  ('a0000000-0000-0000-0000-000000000004', 'image', 'https://picsum.photos/seed/ruammit-p4a/800/600', 1),
-  ('a0000000-0000-0000-0000-000000000004', 'image', 'https://picsum.photos/seed/ruammit-p4b/800/600', 2),
-  ('a0000000-0000-0000-0000-000000000004', 'image', 'https://picsum.photos/seed/ruammit-p4c/800/600', 3),
-  ('a0000000-0000-0000-0000-000000000004', 'image', 'https://picsum.photos/seed/ruammit-p4d/800/600', 4),
-  ('a0000000-0000-0000-0000-000000000005', 'image', 'https://picsum.photos/seed/ruammit-p5a/800/600', 1),
-  ('a0000000-0000-0000-0000-000000000006', 'image', 'https://picsum.photos/seed/ruammit-p6a/800/600', 1),
-  ('a0000000-0000-0000-0000-000000000006', 'image', 'https://picsum.photos/seed/ruammit-p6b/800/600', 2),
-  ('a0000000-0000-0000-0000-000000000007', 'image', 'https://picsum.photos/seed/ruammit-p7a/800/600', 1),
-  ('a0000000-0000-0000-0000-000000000007', 'image', 'https://picsum.photos/seed/ruammit-p7b/800/600', 2),
-  ('a0000000-0000-0000-0000-000000000007', 'image', 'https://picsum.photos/seed/ruammit-p7c/800/600', 3),
+  ('a0000000-0000-0000-0000-000000000001', 'image', 'https://picsum.photos/seed/Waymeet-p1a/800/600', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'image', 'https://picsum.photos/seed/Waymeet-p1b/800/600', 2),
+  ('a0000000-0000-0000-0000-000000000001', 'image', 'https://picsum.photos/seed/Waymeet-p1c/800/600', 3),
+  ('a0000000-0000-0000-0000-000000000002', 'image', 'https://picsum.photos/seed/Waymeet-p2a/800/600', 1),
+  ('a0000000-0000-0000-0000-000000000003', 'image', 'https://picsum.photos/seed/Waymeet-p3a/800/600', 1),
+  ('a0000000-0000-0000-0000-000000000003', 'image', 'https://picsum.photos/seed/Waymeet-p3b/800/600', 2),
+  ('a0000000-0000-0000-0000-000000000004', 'image', 'https://picsum.photos/seed/Waymeet-p4a/800/600', 1),
+  ('a0000000-0000-0000-0000-000000000004', 'image', 'https://picsum.photos/seed/Waymeet-p4b/800/600', 2),
+  ('a0000000-0000-0000-0000-000000000004', 'image', 'https://picsum.photos/seed/Waymeet-p4c/800/600', 3),
+  ('a0000000-0000-0000-0000-000000000004', 'image', 'https://picsum.photos/seed/Waymeet-p4d/800/600', 4),
+  ('a0000000-0000-0000-0000-000000000005', 'image', 'https://picsum.photos/seed/Waymeet-p5a/800/600', 1),
+  ('a0000000-0000-0000-0000-000000000006', 'image', 'https://picsum.photos/seed/Waymeet-p6a/800/600', 1),
+  ('a0000000-0000-0000-0000-000000000006', 'image', 'https://picsum.photos/seed/Waymeet-p6b/800/600', 2),
+  ('a0000000-0000-0000-0000-000000000007', 'image', 'https://picsum.photos/seed/Waymeet-p7a/800/600', 1),
+  ('a0000000-0000-0000-0000-000000000007', 'image', 'https://picsum.photos/seed/Waymeet-p7b/800/600', 2),
+  ('a0000000-0000-0000-0000-000000000007', 'image', 'https://picsum.photos/seed/Waymeet-p7c/800/600', 3),
   ('a0000000-0000-0000-0000-000000000008', 'video', 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', 1),
-  ('a0000000-0000-0000-0000-000000000009', 'image', 'https://picsum.photos/seed/ruammit-p9a/800/600', 1),
-  ('a0000000-0000-0000-0000-000000000010', 'image', 'https://picsum.photos/seed/ruammit-p10a/800/600', 1),
-  ('a0000000-0000-0000-0000-000000000010', 'image', 'https://picsum.photos/seed/ruammit-p10b/800/600', 2),
-  ('a0000000-0000-0000-0000-000000000011', 'image', 'https://picsum.photos/seed/ruammit-p11a/800/600', 1),
-  ('a0000000-0000-0000-0000-000000000011', 'image', 'https://picsum.photos/seed/ruammit-p11b/800/600', 2),
-  ('a0000000-0000-0000-0000-000000000013', 'image', 'https://picsum.photos/seed/ruammit-p13a/800/600', 1),
-  ('a0000000-0000-0000-0000-000000000014', 'image', 'https://picsum.photos/seed/ruammit-p14a/800/600', 1),
-  ('a0000000-0000-0000-0000-000000000014', 'image', 'https://picsum.photos/seed/ruammit-p14b/800/600', 2),
-  ('a0000000-0000-0000-0000-000000000014', 'image', 'https://picsum.photos/seed/ruammit-p14c/800/600', 3);
+  ('a0000000-0000-0000-0000-000000000009', 'image', 'https://picsum.photos/seed/Waymeet-p9a/800/600', 1),
+  ('a0000000-0000-0000-0000-000000000010', 'image', 'https://picsum.photos/seed/Waymeet-p10a/800/600', 1),
+  ('a0000000-0000-0000-0000-000000000010', 'image', 'https://picsum.photos/seed/Waymeet-p10b/800/600', 2),
+  ('a0000000-0000-0000-0000-000000000011', 'image', 'https://picsum.photos/seed/Waymeet-p11a/800/600', 1),
+  ('a0000000-0000-0000-0000-000000000011', 'image', 'https://picsum.photos/seed/Waymeet-p11b/800/600', 2),
+  ('a0000000-0000-0000-0000-000000000013', 'image', 'https://picsum.photos/seed/Waymeet-p13a/800/600', 1),
+  ('a0000000-0000-0000-0000-000000000014', 'image', 'https://picsum.photos/seed/Waymeet-p14a/800/600', 1),
+  ('a0000000-0000-0000-0000-000000000014', 'image', 'https://picsum.photos/seed/Waymeet-p14b/800/600', 2),
+  ('a0000000-0000-0000-0000-000000000014', 'image', 'https://picsum.photos/seed/Waymeet-p14c/800/600', 3);
 
 -- 4b. Post locations ----------------------------------------------------------
 INSERT INTO post_locations (post_id, latitude, longitude, location_name) VALUES
@@ -155,7 +155,7 @@ ON CONFLICT DO NOTHING;
 -- 6. Comments ---------------------------------------------------------------
 INSERT INTO comments (post_id, author_id, body, created_at) VALUES
   ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000003', 'This is on my bucket list now. Which company did you fly with?', now() - interval '20 minutes'),
-  ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Unreal shot 🔥', now() - interval '12 minutes'),
+  ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Unreal shot ðŸ”¥', now() - interval '12 minutes'),
   ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000005', 'Drop the location please!!', now() - interval '50 minutes'),
   ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000002', 'Saving this for my Krabi trip next month.', now() - interval '3 hours'),
   ('a0000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000004', 'The 5am wake-up is always worth it at Angkor.', now() - interval '8 hours'),
@@ -169,12 +169,12 @@ DELETE FROM stories WHERE id IN (
 );
 
 INSERT INTO stories (id, author_id, media_url, created_at, expires_at) VALUES
-  ('c0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'https://picsum.photos/seed/ruammit-s1/400/700', now() - interval '40 minutes', now() + interval '23 hours'),
-  ('c0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003', 'https://picsum.photos/seed/ruammit-s2/400/700', now() - interval '1 hour 30 minutes', now() + interval '22 hours'),
-  ('c0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000005', 'https://picsum.photos/seed/ruammit-s3/400/700', now() - interval '2 hours', now() + interval '22 hours'),
-  ('c0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000006', 'https://picsum.photos/seed/ruammit-s4/400/700', now() - interval '3 hours', now() + interval '21 hours'),
-  ('c0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000007', 'https://picsum.photos/seed/ruammit-s5/400/700', now() - interval '4 hours', now() + interval '20 hours'),
-  ('c0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000008', 'https://picsum.photos/seed/ruammit-s6/400/700', now() - interval '6 hours', now() + interval '18 hours');
+  ('c0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'https://picsum.photos/seed/Waymeet-s1/400/700', now() - interval '40 minutes', now() + interval '23 hours'),
+  ('c0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003', 'https://picsum.photos/seed/Waymeet-s2/400/700', now() - interval '1 hour 30 minutes', now() + interval '22 hours'),
+  ('c0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000005', 'https://picsum.photos/seed/Waymeet-s3/400/700', now() - interval '2 hours', now() + interval '22 hours'),
+  ('c0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000006', 'https://picsum.photos/seed/Waymeet-s4/400/700', now() - interval '3 hours', now() + interval '21 hours'),
+  ('c0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000007', 'https://picsum.photos/seed/Waymeet-s5/400/700', now() - interval '4 hours', now() + interval '20 hours'),
+  ('c0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000008', 'https://picsum.photos/seed/Waymeet-s6/400/700', now() - interval '6 hours', now() + interval '18 hours');
 
 -- 8. Backfill the denormalized counters for the seeded posts ------------------
 UPDATE posts p SET

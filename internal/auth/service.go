@@ -12,9 +12,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"ruammit-backend/internal/platform/config"
-	"ruammit-backend/internal/platform/storage"
-	"ruammit-backend/internal/platform/storage/dbgen"
+	"waymeet-backend/internal/platform/config"
+	"waymeet-backend/internal/platform/storage"
+	"waymeet-backend/internal/platform/storage/dbgen"
 )
 
 // Tunables for the registration OTP flow.
@@ -382,7 +382,7 @@ func (s *Service) Refresh(ctx context.Context, rawToken string) (*TokenPair, err
 		return nil, err
 	}
 	if row.RevokedAt.Valid {
-		// Reuse of a revoked token — revoke everything for this user.
+		// Reuse of a revoked token â€” revoke everything for this user.
 		if err := s.db.Queries.RevokeAllUserRefreshTokens(ctx, row.UserID); err != nil {
 			s.log.Error("failed to revoke sessions after token reuse", "err", err)
 		}
@@ -410,7 +410,7 @@ func (s *Service) Refresh(ctx context.Context, rawToken string) (*TokenPair, err
 	return pair, nil
 }
 
-// Logout revokes a refresh token. Idempotent — an unknown token is a no-op.
+// Logout revokes a refresh token. Idempotent â€” an unknown token is a no-op.
 func (s *Service) Logout(ctx context.Context, rawToken string) error {
 	row, err := s.db.Queries.GetRefreshToken(ctx, hashToken(rawToken))
 	if err != nil {

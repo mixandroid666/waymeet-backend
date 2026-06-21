@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"ruammit-backend/internal/auth"
-	"ruammit-backend/internal/platform/httpx"
+	"waymeet-backend/internal/auth"
+	"waymeet-backend/internal/platform/httpx"
 )
 
 // Upload limits.
@@ -356,7 +356,7 @@ func (h *Handler) unfollow(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidName):
-		httpx.Error(w, http.StatusBadRequest, "invalid_name", "Your name must be 2–50 characters.")
+		httpx.Error(w, http.StatusBadRequest, "invalid_name", "Your name must be 2â€“50 characters.")
 	case errors.Is(err, ErrInvalidGender):
 		httpx.Error(w, http.StatusBadRequest, "invalid_gender", "Choose male, female or other.")
 	case errors.Is(err, ErrInvalidBirth):

@@ -9,11 +9,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"ruammit-backend/internal/platform/storage/dbgen"
+	"waymeet-backend/internal/platform/storage/dbgen"
 )
 
 // DB bundles the pgx pool with the generated Queries. Pass *DB into module
-// repositories; use Pool directly for transactions (pool.Begin → q.WithTx(tx)).
+// repositories; use Pool directly for transactions (pool.Begin â†’ q.WithTx(tx)).
 type DB struct {
 	Pool    *pgxpool.Pool
 	Queries *dbgen.Queries

@@ -37,16 +37,16 @@ WHERE c.user_a = sqlc.arg(viewer_id) OR c.user_b = sqlc.arg(viewer_id)
 ORDER BY COALESCE(m.created_at, c.created_at) DESC;
 
 -- name: ListMessages :many
-SELECT id, conversation_id, sender_id, body, created_at
+SELECT id, conversation_id, sender_id, body, msg_type, media_url, created_at
 FROM messages
 WHERE conversation_id = sqlc.arg(conversation_id)
 ORDER BY created_at ASC
 LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: CreateMessage :one
-INSERT INTO messages (conversation_id, sender_id, body)
-VALUES (sqlc.arg(conversation_id), sqlc.arg(sender_id), sqlc.arg(body))
-RETURNING id, conversation_id, sender_id, body, created_at;
+INSERT INTO messages (conversation_id, sender_id, body, msg_type, media_url)
+VALUES (sqlc.arg(conversation_id), sqlc.arg(sender_id), sqlc.arg(body), sqlc.arg(msg_type), sqlc.arg(media_url))
+RETURNING id, conversation_id, sender_id, body, msg_type, media_url, created_at;
 
 -- name: GetConversationPartners :many
 SELECT

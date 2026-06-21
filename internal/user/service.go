@@ -12,9 +12,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"ruammit-backend/internal/platform/mediastore"
-	"ruammit-backend/internal/platform/storage"
-	"ruammit-backend/internal/platform/storage/dbgen"
+	"waymeet-backend/internal/platform/mediastore"
+	"waymeet-backend/internal/platform/storage"
+	"waymeet-backend/internal/platform/storage/dbgen"
 )
 
 // Profile field limits / rules.

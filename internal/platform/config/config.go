@@ -45,7 +45,7 @@ func Load() Config {
 	return Config{
 		Env:         env("ENV", "development"),
 		HTTPAddr:    env("HTTP_ADDR", ":8080"),
-		DatabaseURL: env("DATABASE_URL", "postgres://ruammit:ruammit@localhost:5432/ruammit?sslmode=disable"),
+		DatabaseURL: env("DATABASE_URL", "postgres://waymeet:waymeet@localhost:5432/waymeet?sslmode=disable"),
 		RedisURL:    env("REDIS_URL", "redis://localhost:6379/0"),
 
 		JWTSecret:       env("JWT_SECRET", "change-me-in-production"),
@@ -54,7 +54,7 @@ func Load() Config {
 
 		S3Endpoint:  env("S3_ENDPOINT", "http://localhost:9000"),
 		S3Region:    env("S3_REGION", "us-east-1"),
-		S3Bucket:    env("S3_BUCKET", "ruammit-media"),
+		S3Bucket:    env("S3_BUCKET", "waymeet-media"),
 		S3AccessKey: env("S3_ACCESS_KEY", "minioadmin"),
 		S3SecretKey: env("S3_SECRET_KEY", "minioadmin"),
 

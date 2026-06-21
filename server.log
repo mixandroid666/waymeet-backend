@@ -1,0 +1,6 @@
+time=2026-06-21T22:18:49.108+07:00 level=INFO msg="database connected"
+time=2026-06-21T22:18:49.109+07:00 level=INFO msg="media store: s3" bucket=waymeet-media endpoint=http://localhost:9000
+time=2026-06-21T22:18:49.109+07:00 level=INFO msg="notification: FCM disabled (FCM_CREDENTIALS_FILE not set)"
+time=2026-06-21T22:18:49.110+07:00 level=INFO msg="api listening" addr=:8080 env=development
+time=2026-06-21T22:18:49.244+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
+time=2026-06-21T22:18:50.784+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401

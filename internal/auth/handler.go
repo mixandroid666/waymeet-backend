@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"time"
 
-	"ruammit-backend/internal/platform/httpx"
+	"waymeet-backend/internal/platform/httpx"
 )
 
 var phoneRe = regexp.MustCompile(`^\+?\d{6,15}$`)

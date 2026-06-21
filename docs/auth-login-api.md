@@ -1,8 +1,8 @@
-# Ruammit — Login & Session API (Flutter integration guide)
+﻿# waymeet â€” Login & Session API (Flutter integration guide)
 
 This document specifies the **login / token / session** API and how to wire it
 into the Flutter app. It builds on the registration flow
-(`docs/auth-registration-api.md`) — a user must be **registered and verified**
+(`docs/auth-registration-api.md`) â€” a user must be **registered and verified**
 before they can log in.
 
 > Written for the Flutter-side developer. You don't need to read the backend
@@ -22,18 +22,18 @@ Login returns **two tokens**:
 Flow:
 
 ```
-LoginScreen ── POST /auth/login ──► { access_token, refresh_token, user }
+LoginScreen â”€â”€ POST /auth/login â”€â”€â–º { access_token, refresh_token, user }
    store both tokens securely
-        │
-        ├─ call protected APIs with:  Authorization: Bearer <access_token>
-        │
-        ├─ access token expired? (401 invalid_token / unauthorized)
-        │      └─ POST /auth/refresh { refresh_token } ──► new pair, retry once
-        │
-        └─ logout ── POST /auth/logout { refresh_token }  (revokes it server-side)
+        â”‚
+        â”œâ”€ call protected APIs with:  Authorization: Bearer <access_token>
+        â”‚
+        â”œâ”€ access token expired? (401 invalid_token / unauthorized)
+        â”‚      â””â”€ POST /auth/refresh { refresh_token } â”€â”€â–º new pair, retry once
+        â”‚
+        â””â”€ logout â”€â”€ POST /auth/logout { refresh_token }  (revokes it server-side)
 ```
 
-The **access token is short-lived on purpose** — if it expires mid-session, call
+The **access token is short-lived on purpose** â€” if it expires mid-session, call
 `/auth/refresh` to get a new one without making the user log in again. Refresh
 tokens **rotate**: each refresh returns a *new* refresh token and invalidates the
 old one. Reusing an old refresh token revokes the whole session (theft defense),
@@ -60,7 +60,7 @@ Same as registration: Android emulator `http://10.0.2.2:8080`, iOS sim / desktop
   "password": "secret123"
 }
 ```
-> The current Flutter login screen is email-only → always send `"email"`. The
+> The current Flutter login screen is email-only â†’ always send `"email"`. The
 > API also accepts `"phone"` (for users who registered by phone), so you can add
 > a phone toggle later without backend changes.
 
@@ -81,7 +81,7 @@ Same as registration: Android emulator `http://10.0.2.2:8080`, iOS sim / desktop
 Exchange a refresh token for a fresh pair (rotates the refresh token).
 
 **Request** `{ "refresh_token": "I47xJBqiET4..." }`
-**Response `200 OK`** — identical shape to login. **Replace both stored tokens
+**Response `200 OK`** â€” identical shape to login. **Replace both stored tokens
 with the returned ones.**
 
 ### 3.3 `POST /api/v1/auth/logout`
@@ -89,9 +89,9 @@ with the returned ones.**
 Revoke a refresh token server-side.
 
 **Request** `{ "refresh_token": "I47xJBqiET4..." }`
-**Response `204 No Content`** — then clear both tokens from device storage.
+**Response `204 No Content`** â€” then clear both tokens from device storage.
 
-### 3.4 `GET /api/v1/auth/me` (protected — example)
+### 3.4 `GET /api/v1/auth/me` (protected â€” example)
 
 Returns the caller's id; useful to validate a stored token on app start.
 
@@ -106,12 +106,12 @@ Same envelope as the rest of the API: `{ "error": "code", "message": "..." }`.
 
 | HTTP | `error` | Endpoint | Meaning / suggested UI |
 |------|---------|----------|------------------------|
-| 400  | `validation_error` | login | Bad contact format or empty password — show under field |
-| 401  | `invalid_credentials` | login | Wrong contact or password — "Incorrect email or password" |
-| 403  | `account_not_verified` | login | Registered but not OTP-verified — route to the OTP screen |
-| 401  | `invalid_token` | refresh | Refresh token expired/revoked/unknown — force re-login |
-| 401  | `unauthorized` | protected routes | Missing/expired access token — try refresh, else re-login |
-| 204  | — | logout | Success (idempotent; unknown token still returns 204) |
+| 400  | `validation_error` | login | Bad contact format or empty password â€” show under field |
+| 401  | `invalid_credentials` | login | Wrong contact or password â€” "Incorrect email or password" |
+| 403  | `account_not_verified` | login | Registered but not OTP-verified â€” route to the OTP screen |
+| 401  | `invalid_token` | refresh | Refresh token expired/revoked/unknown â€” force re-login |
+| 401  | `unauthorized` | protected routes | Missing/expired access token â€” try refresh, else re-login |
+| 204  | â€” | logout | Success (idempotent; unknown token still returns 204) |
 
 ---
 
@@ -119,19 +119,19 @@ Same envelope as the rest of the API: `{ "error": "code", "message": "..." }`.
 
 ### 5.1 Where this plugs in
 
-- **`lib/screens/login_screen.dart`** — `_onLogin()` currently calls
+- **`lib/screens/login_screen.dart`** â€” `_onLogin()` currently calls
   `pushReplacement(HomeScreen)` unconditionally. Change it to: validate the form,
   call `POST /auth/login`, store the tokens on success, then navigate to Home; on
   `invalid_credentials` show an error; on `account_not_verified` push the
   `OtpScreen` so the user can finish verifying.
-- **Token storage** — use **`flutter_secure_storage`** (Keychain/Keystore), **not**
+- **Token storage** â€” use **`flutter_secure_storage`** (Keychain/Keystore), **not**
   `SharedPreferences`, for the refresh token. Add it with `flutter pub add
   flutter_secure_storage`.
-- **Attaching the token** — centralize HTTP in an authenticated client that adds
+- **Attaching the token** â€” centralize HTTP in an authenticated client that adds
   the `Authorization` header and, on a `401`, tries `/auth/refresh` once and
   replays the request. `dio` with an `InterceptorsWrapper` is the cleanest fit
   (`flutter pub add dio`); `http` works too with a manual wrapper.
-- **App start** — on launch, if a refresh token exists, call `/auth/refresh` (or
+- **App start** â€” on launch, if a refresh token exists, call `/auth/refresh` (or
   `/auth/me` with a stored access token) to decide whether to skip the login
   screen.
 
@@ -197,7 +197,7 @@ try {
 ### 5.3 The refresh-on-401 pattern (recommended)
 
 ```
-request → if 401:
+request â†’ if 401:
    refresh() using stored refresh_token
    if refresh OK:  save new tokens, retry the original request ONCE
    if refresh fails (invalid_token): wipe tokens, send user to LoginScreen
@@ -214,20 +214,20 @@ interceptor so every call gets it for free.
 |------|-------|
 | Access token TTL | 15 min (config `ACCESS_TOKEN_TTL`) |
 | Refresh token TTL | 30 days (config `REFRESH_TOKEN_TTL`) |
-| Refresh rotation | yes — old token invalid after use |
+| Refresh rotation | yes â€” old token invalid after use |
 | Reuse of revoked refresh | revokes ALL the user's sessions |
-| Token type | JWT (HS256) access · opaque random refresh (stored hashed) |
+| Token type | JWT (HS256) access Â· opaque random refresh (stored hashed) |
 | Header format | `Authorization: Bearer <access_token>` |
 
 ---
 
 ## 7. Notes / future work
 
-- **Social login** (Google/Facebook/TikTok buttons) is **not** wired yet — those
+- **Social login** (Google/Facebook/TikTok buttons) is **not** wired yet â€” those
   buttons should stay stubbed until the OAuth endpoints land.
 - The access-token secret is `JWT_SECRET` (env). It is a dev default now and must
   be a strong secret in production, or all tokens are forgeable.
-- "Remember me" is effectively always on — the refresh token persists the session
+- "Remember me" is effectively always on â€” the refresh token persists the session
   for 30 days. Add a toggle later if needed.
 - `account_not_verified` is returned only after the password is correct, so it
   doesn't leak which accounts exist to an attacker guessing passwords.

@@ -11,8 +11,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"ruammit-backend/internal/platform/storage"
-	"ruammit-backend/internal/platform/storage/dbgen"
+	"waymeet-backend/internal/notification"
+	"waymeet-backend/internal/platform/storage"
+	"waymeet-backend/internal/platform/storage/dbgen"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -33,17 +34,20 @@ type Message struct {
 	ConversationID string
 	SenderID       string
 	Body           string
+	MsgType        string
+	MediaURL       string
 	CreatedAt      time.Time
 }
 
 type Service struct {
-	hub *Hub
-	db  *storage.DB
-	log *slog.Logger
+	hub    *Hub
+	db     *storage.DB
+	notify *notification.Service
+	log    *slog.Logger
 }
 
-func NewService(hub *Hub, db *storage.DB, log *slog.Logger) *Service {
-	return &Service{hub: hub, db: db, log: log}
+func NewService(hub *Hub, db *storage.DB, notify *notification.Service, log *slog.Logger) *Service {
+	return &Service{hub: hub, db: db, notify: notify, log: log}
 }
 
 func (s *Service) GetOrCreateConversation(ctx context.Context, userA, userB string) (string, error) {
@@ -123,21 +127,33 @@ func (s *Service) ListMessages(ctx context.Context, viewerID, conversationID str
 	}
 	out := make([]Message, 0, len(rows))
 	for _, r := range rows {
+		mediaURL := ""
+		if r.MediaURL != nil {
+			mediaURL = *r.MediaURL
+		}
+		msgType := r.MsgType
+		if msgType == "" {
+			msgType = "text"
+		}
 		out = append(out, Message{
 			ID:             uuidString(r.ID),
 			ConversationID: uuidString(r.ConversationID),
 			SenderID:       uuidString(r.SenderID),
 			Body:           r.Body,
+			MsgType:        msgType,
+			MediaURL:       mediaURL,
 			CreatedAt:      r.CreatedAt.Time,
 		})
 	}
 	return out, nil
 }
 
-// inboundMsg is the JSON payload a client sends.
+// inboundMsg is the JSON payload a client sends over WebSocket.
 type inboundMsg struct {
 	ConversationID string `json:"conversation_id"`
 	Body           string `json:"body"`
+	MsgType        string `json:"msg_type"`  // "text" | "sticker" | "image"; defaults to "text"
+	MediaURL       string `json:"media_url"` // required when msg_type = "image"
 }
 
 // Envelope is the JSON payload delivered to each party for chat messages.
@@ -147,6 +163,8 @@ type Envelope struct {
 	ConversationID string `json:"conversation_id"`
 	From           string `json:"from"`
 	Body           string `json:"body"`
+	MsgType        string `json:"msg_type"`
+	MediaURL       string `json:"media_url,omitempty"`
 	Ts             string `json:"ts"`
 }
 
@@ -159,7 +177,29 @@ type presenceEnvelope struct {
 
 func (s *Service) handleInbound(sender *Client, raw []byte) {
 	var msg inboundMsg
-	if err := json.Unmarshal(raw, &msg); err != nil || msg.ConversationID == "" || msg.Body == "" {
+	if err := json.Unmarshal(raw, &msg); err != nil || msg.ConversationID == "" {
+		return
+	}
+
+	msgType := msg.MsgType
+	if msgType == "" {
+		msgType = "text"
+	}
+
+	var mediaURL *string
+	switch msgType {
+	case "text", "sticker":
+		if msg.Body == "" {
+			return
+		}
+	case "image":
+		if msg.MediaURL == "" {
+			return
+		}
+		// Normalize body to a display-friendly preview used in conversation lists.
+		msg.Body = "ðŸ“· Photo"
+		mediaURL = &msg.MediaURL
+	default:
 		return
 	}
 
@@ -185,6 +225,8 @@ func (s *Service) handleInbound(sender *Client, raw []byte) {
 		ConversationID: cid,
 		SenderID:       sid,
 		Body:           msg.Body,
+		MsgType:        msgType,
+		MediaURL:       mediaURL,
 	})
 	if err != nil {
 		s.log.Error("chat: failed to persist message", "err", err)
@@ -197,6 +239,8 @@ func (s *Service) handleInbound(sender *Client, raw []byte) {
 		ConversationID: msg.ConversationID,
 		From:           sender.userID,
 		Body:           msg.Body,
+		MsgType:        msgType,
+		MediaURL:       msg.MediaURL,
 		Ts:             saved.CreatedAt.Time.UTC().Format(time.RFC3339),
 	})
 	if err != nil {
@@ -205,9 +249,24 @@ func (s *Service) handleInbound(sender *Client, raw []byte) {
 
 	partnerID := uuidString(partnerUUID)
 	if !s.hub.deliver(partnerID, env) {
-		s.log.Debug("chat: partner offline", "partner", partnerID)
+		s.log.Debug("chat: partner offline, sending push", "partner", partnerID)
+		go s.pushChat(partnerID, sender.userID, msg.Body, msg.ConversationID)
 	}
 	_ = sender.tryDeliver(env)
+}
+
+// pushChat looks up the sender's display name and fires a push notification.
+func (s *Service) pushChat(toUserID, senderID, body, conversationID string) {
+	if s.notify == nil {
+		return
+	}
+	senderName := "New message"
+	if sid, err := parseUUID(senderID); err == nil {
+		if u, err := s.db.Queries.GetUserByID(context.Background(), sid); err == nil && u.DisplayName != nil {
+			senderName = *u.DisplayName
+		}
+	}
+	s.notify.SendChat(context.Background(), toUserID, senderName, body, conversationID)
 }
 
 // StartPresenceWorker drains presenceC and fans out online/offline events to conversation partners.

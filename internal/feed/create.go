@@ -12,7 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"ruammit-backend/internal/platform/storage/dbgen"
+	"waymeet-backend/internal/platform/storage/dbgen"
 )
 
 // Limits enforced by the service (the handler enforces byte sizes up front).
@@ -230,7 +230,7 @@ func newUUID() (pgtype.UUID, error) {
 }
 
 // rateLimiter enforces a minimum interval between actions per key (user id).
-// In-memory and per-process — fine for a single API instance; swap for Redis
+// In-memory and per-process â€” fine for a single API instance; swap for Redis
 // when scaling out.
 type rateLimiter struct {
 	mu       sync.Mutex

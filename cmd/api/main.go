@@ -1,4 +1,4 @@
-// Command api is the Ruammit HTTP API server.
+// Command api is the Waymeet HTTP API server.
 package main
 
 import (
@@ -12,14 +12,14 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"ruammit-backend/internal/platform/config"
-	"ruammit-backend/internal/platform/logging"
-	"ruammit-backend/internal/platform/server"
-	"ruammit-backend/internal/platform/storage"
+	"waymeet-backend/internal/platform/config"
+	"waymeet-backend/internal/platform/logging"
+	"waymeet-backend/internal/platform/server"
+	"waymeet-backend/internal/platform/storage"
 )
 
 func main() {
-	// Load .env into the environment for local dev. Missing file is fine —
+	// Load .env into the environment for local dev. Missing file is fine â€”
 	// in production, config comes from real environment variables.
 	_ = godotenv.Load()
 

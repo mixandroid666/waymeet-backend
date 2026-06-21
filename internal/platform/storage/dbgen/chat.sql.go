@@ -129,7 +129,7 @@ func (q *Queries) ListConversations(ctx context.Context, viewerID pgtype.UUID) (
 }
 
 const listMessages = `-- name: ListMessages :many
-SELECT id, conversation_id, sender_id, body, created_at
+SELECT id, conversation_id, sender_id, body, msg_type, media_url, created_at
 FROM messages
 WHERE conversation_id = $1
 ORDER BY created_at ASC
@@ -147,6 +147,8 @@ type ListMessagesRow struct {
 	ConversationID pgtype.UUID        `json:"conversation_id"`
 	SenderID       pgtype.UUID        `json:"sender_id"`
 	Body           string             `json:"body"`
+	MsgType        string             `json:"msg_type"`
+	MediaURL       *string            `json:"media_url"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
@@ -164,6 +166,8 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]L
 			&i.ConversationID,
 			&i.SenderID,
 			&i.Body,
+			&i.MsgType,
+			&i.MediaURL,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -177,15 +181,17 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]L
 }
 
 const createMessage = `-- name: CreateMessage :one
-INSERT INTO messages (conversation_id, sender_id, body)
-VALUES ($1, $2, $3)
-RETURNING id, conversation_id, sender_id, body, created_at
+INSERT INTO messages (conversation_id, sender_id, body, msg_type, media_url)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, conversation_id, sender_id, body, msg_type, media_url, created_at
 `
 
 type CreateMessageParams struct {
 	ConversationID pgtype.UUID `json:"conversation_id"`
 	SenderID       pgtype.UUID `json:"sender_id"`
 	Body           string      `json:"body"`
+	MsgType        string      `json:"msg_type"`
+	MediaURL       *string     `json:"media_url"`
 }
 
 type CreateMessageRow struct {
@@ -193,17 +199,21 @@ type CreateMessageRow struct {
 	ConversationID pgtype.UUID        `json:"conversation_id"`
 	SenderID       pgtype.UUID        `json:"sender_id"`
 	Body           string             `json:"body"`
+	MsgType        string             `json:"msg_type"`
+	MediaURL       *string            `json:"media_url"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (CreateMessageRow, error) {
-	row := q.db.QueryRow(ctx, createMessage, arg.ConversationID, arg.SenderID, arg.Body)
+	row := q.db.QueryRow(ctx, createMessage, arg.ConversationID, arg.SenderID, arg.Body, arg.MsgType, arg.MediaURL)
 	var i CreateMessageRow
 	err := row.Scan(
 		&i.ID,
 		&i.ConversationID,
 		&i.SenderID,
 		&i.Body,
+		&i.MsgType,
+		&i.MediaURL,
 		&i.CreatedAt,
 	)
 	return i, err

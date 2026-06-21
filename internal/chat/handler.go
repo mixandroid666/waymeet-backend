@@ -1,17 +1,22 @@
 package chat
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
 
-	"ruammit-backend/internal/auth"
-	"ruammit-backend/internal/platform/httpx"
+	"waymeet-backend/internal/auth"
+	"waymeet-backend/internal/platform/httpx"
+	"waymeet-backend/internal/platform/mediastore"
 )
 
 var upgrader = websocket.Upgrader{
@@ -22,14 +27,15 @@ var upgrader = websocket.Upgrader{
 
 // Handler manages the WebSocket chat upgrade endpoint and REST chat endpoints.
 type Handler struct {
-	hub  *Hub
-	svc  *Service
-	auth *auth.Service
-	log  *slog.Logger
+	hub   *Hub
+	svc   *Service
+	auth  *auth.Service
+	media mediastore.Store
+	log   *slog.Logger
 }
 
-func NewHandler(hub *Hub, svc *Service, authSvc *auth.Service, log *slog.Logger) *Handler {
-	return &Handler{hub: hub, svc: svc, auth: authSvc, log: log}
+func NewHandler(hub *Hub, svc *Service, authSvc *auth.Service, media mediastore.Store, log *slog.Logger) *Handler {
+	return &Handler{hub: hub, svc: svc, auth: authSvc, media: media, log: log}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
@@ -38,6 +44,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/conversations", h.auth.Middleware(http.HandlerFunc(h.listConversations)))
 	mux.Handle("GET /api/v1/conversations/{id}/messages", h.auth.Middleware(http.HandlerFunc(h.listMessages)))
 	mux.Handle("GET /api/v1/users/{id}/presence", h.auth.Middleware(http.HandlerFunc(h.getPresence)))
+	mux.Handle("POST /api/v1/chat/upload-image", h.auth.Middleware(http.HandlerFunc(h.uploadImage)))
 }
 
 func (h *Handler) connect(w http.ResponseWriter, r *http.Request) {
@@ -82,6 +89,8 @@ type messageDTO struct {
 	ConversationID string `json:"conversation_id"`
 	SenderID       string `json:"sender_id"`
 	Body           string `json:"body"`
+	MsgType        string `json:"msg_type"`
+	MediaURL       string `json:"media_url,omitempty"`
 	CreatedAt      string `json:"created_at"`
 }
 
@@ -185,8 +194,57 @@ func (h *Handler) listMessages(w http.ResponseWriter, r *http.Request) {
 			ConversationID: m.ConversationID,
 			SenderID:       m.SenderID,
 			Body:           m.Body,
+			MsgType:        m.MsgType,
+			MediaURL:       m.MediaURL,
 			CreatedAt:      m.CreatedAt.UTC().Format(time.RFC3339),
 		})
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"messages": out})
+}
+
+func (h *Handler) uploadImage(w http.ResponseWriter, r *http.Request) {
+	viewerID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized", "")
+		return
+	}
+
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "bad_request", "request too large or malformed")
+		return
+	}
+
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "bad_request", "image field required")
+		return
+	}
+	defer file.Close()
+
+	ct := header.Header.Get("Content-Type")
+	if !strings.HasPrefix(ct, "image/") {
+		httpx.Error(w, http.StatusBadRequest, "bad_request", "file must be an image")
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	if ext == "" {
+		ext = ".jpg"
+	}
+
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "internal_error", "")
+		return
+	}
+	key := fmt.Sprintf("chat/%s/%x%s", viewerID, b, ext)
+
+	url, err := h.media.Save(key, file)
+	if err != nil {
+		h.log.Error("chat: failed to save image", "err", err)
+		httpx.Error(w, http.StatusInternalServerError, "internal_error", "failed to save image")
+		return
+	}
+
+	httpx.JSON(w, http.StatusOK, map[string]string{"url": url})
 }

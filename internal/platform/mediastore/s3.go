@@ -15,7 +15,7 @@ import (
 )
 
 // S3Store is an S3/MinIO-backed Store. Objects are stored in bucket and
-// accessed via publicBase (e.g. "http://localhost:9000/ruammit-media").
+// accessed via publicBase (e.g. "http://localhost:9000/waymeet-media").
 type S3Store struct {
 	client     *s3.Client
 	bucket     string

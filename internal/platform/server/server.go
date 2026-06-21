@@ -1,8 +1,8 @@
 // Package server wires configuration, logging and routes into an http.Server.
 //
 // Routing uses the stdlib http.ServeMux with Go 1.22+ method-aware patterns
-// (e.g. "GET /api/v1/healthz"). Swap to chi if/when richer routing — route
-// groups, URL params, per-group middleware — is needed; the handler signatures
+// (e.g. "GET /api/v1/healthz"). Swap to chi if/when richer routing â€” route
+// groups, URL params, per-group middleware â€” is needed; the handler signatures
 // stay the same.
 package server
 
@@ -12,14 +12,15 @@ import (
 	"net/http"
 	"time"
 
-	"ruammit-backend/internal/auth"
-	"ruammit-backend/internal/chat"
-	"ruammit-backend/internal/feed"
-	"ruammit-backend/internal/platform/config"
-	"ruammit-backend/internal/platform/httpx"
-	"ruammit-backend/internal/platform/mediastore"
-	"ruammit-backend/internal/platform/storage"
-	"ruammit-backend/internal/user"
+	"waymeet-backend/internal/auth"
+	"waymeet-backend/internal/chat"
+	"waymeet-backend/internal/feed"
+	"waymeet-backend/internal/notification"
+	"waymeet-backend/internal/platform/config"
+	"waymeet-backend/internal/platform/httpx"
+	"waymeet-backend/internal/platform/mediastore"
+	"waymeet-backend/internal/platform/storage"
+	"waymeet-backend/internal/user"
 )
 
 // New builds the configured *http.Server, ready to ListenAndServe.
@@ -77,12 +78,16 @@ func registerRoutes(mux *http.ServeMux, cfg config.Config, log *slog.Logger, db 
 	userSvc := user.NewService(db, mediaStore, log)
 	user.NewHandler(userSvc, authSvc, log).RegisterRoutes(mux)
 
+	// Notifications: FCM push delivery + device token management.
+	notifySvc := notification.New(cfg.FCMCredentialsFile, db, log)
+	notification.NewHandler(notifySvc, authSvc, log).RegisterRoutes(mux)
+
 	// Chat: 1v1 real-time messaging over WebSocket.
 	chatHub := chat.NewHub(log)
 	go chatHub.Run(hubCtx)
-	chatSvc := chat.NewService(chatHub, db, log)
+	chatSvc := chat.NewService(chatHub, db, notifySvc, log)
 	chatSvc.StartPresenceWorker(hubCtx)
-	chat.NewHandler(chatHub, chatSvc, authSvc, log).RegisterRoutes(mux)
+	chat.NewHandler(chatHub, chatSvc, authSvc, mediaStore, log).RegisterRoutes(mux)
 }
 
 // otpSender chooses how OTP codes are delivered. With a Resend API key set,
@@ -111,12 +116,12 @@ func newMediaStore(cfg config.Config, log *slog.Logger) mediastore.Store {
 	return mediastore.NewLocal(cfg.UploadDir, cfg.MediaURLPrefix)
 }
 
-// health is a liveness probe — the process is up.
+// health is a liveness probe â€” the process is up.
 func health(w http.ResponseWriter, _ *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// readiness is a readiness probe — dependencies (the database) are reachable.
+// readiness is a readiness probe â€” dependencies (the database) are reachable.
 func readiness(db *storage.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
