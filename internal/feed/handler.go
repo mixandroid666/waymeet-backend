@@ -158,8 +158,12 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	}
 	limit := queryInt(r, "limit", 0)
 	offset := queryInt(r, "offset", 0)
+	filter := FeedFilter(r.URL.Query().Get("filter"))
+	if filter == "" {
+		filter = FilterFollower
+	}
 
-	page, err := h.svc.HomeFeed(r.Context(), viewerID, limit, offset)
+	page, err := h.svc.HomeFeed(r.Context(), viewerID, limit, offset, filter)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -177,7 +181,12 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) stories(w http.ResponseWriter, r *http.Request) {
-	authors, err := h.svc.Stories(r.Context())
+	viewerID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized", "")
+		return
+	}
+	authors, err := h.svc.Stories(r.Context(), viewerID)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return

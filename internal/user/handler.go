@@ -40,6 +40,9 @@ func NewHandler(svc *Service, authSvc *auth.Service, log *slog.Logger) *Handler 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/users/me", h.auth.Middleware(http.HandlerFunc(h.getMe)))
 	mux.Handle("PATCH /api/v1/users/me", h.auth.Middleware(http.HandlerFunc(h.updateMe)))
+	mux.Handle("GET /api/v1/users/{id}", h.auth.Middleware(http.HandlerFunc(h.getUser)))
+	mux.Handle("POST /api/v1/users/{id}/follow", h.auth.Middleware(http.HandlerFunc(h.follow)))
+	mux.Handle("DELETE /api/v1/users/{id}/follow", h.auth.Middleware(http.HandlerFunc(h.unfollow)))
 }
 
 // --- response DTO ----------------------------------------------------------
@@ -58,6 +61,16 @@ type profileDTO struct {
 	ThumbnailURLs    []string `json:"thumbnail_urls"` // ordered, up to 6
 	FollowerCount    int64    `json:"follower_count"`
 	FollowingCount   int64    `json:"following_count"`
+}
+
+type publicProfileDTO struct {
+	ID             string `json:"id"`
+	DisplayName    string `json:"display_name"`
+	AvatarURL      string `json:"avatar_url"`
+	Bio            string `json:"bio"`
+	FollowerCount  int64  `json:"follower_count"`
+	FollowingCount int64  `json:"following_count"`
+	IsFollowing    bool   `json:"is_following"`
 }
 
 func profileDTOOf(p *Profile) profileDTO {
@@ -285,6 +298,57 @@ func imageExt(data []byte, filename string) (string, bool) {
 	return "", false
 }
 
+func (h *Handler) getUser(w http.ResponseWriter, r *http.Request) {
+	viewerID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized", "")
+		return
+	}
+	targetID := r.PathValue("id")
+	profile, err := h.svc.GetPublicProfile(r.Context(), viewerID, targetID)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, publicProfileDTO{
+		ID:             profile.ID,
+		DisplayName:    profile.DisplayName,
+		AvatarURL:      profile.AvatarURL,
+		Bio:            profile.Bio,
+		FollowerCount:  profile.FollowerCount,
+		FollowingCount: profile.FollowingCount,
+		IsFollowing:    profile.IsFollowing,
+	})
+}
+
+func (h *Handler) follow(w http.ResponseWriter, r *http.Request) {
+	viewerID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized", "")
+		return
+	}
+	targetID := r.PathValue("id")
+	if err := h.svc.Follow(r.Context(), viewerID, targetID); err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) unfollow(w http.ResponseWriter, r *http.Request) {
+	viewerID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized", "")
+		return
+	}
+	targetID := r.PathValue("id")
+	if err := h.svc.Unfollow(r.Context(), viewerID, targetID); err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidName):
@@ -299,6 +363,8 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 		httpx.Error(w, http.StatusBadRequest, "bio_too_long", "Your bio is too long.")
 	case errors.Is(err, ErrNotFound):
 		httpx.Error(w, http.StatusNotFound, "not_found", "Account not found.")
+	case errors.Is(err, ErrCannotFollowSelf):
+		httpx.Error(w, http.StatusBadRequest, "cannot_follow_self", "You cannot follow yourself.")
 	default:
 		h.log.Error("user service error", "err", err)
 		httpx.Error(w, http.StatusInternalServerError, "internal_error", "")

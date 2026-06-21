@@ -54,3 +54,27 @@ DELETE FROM profile_photos WHERE user_id = sqlc.arg(user_id);
 -- name: InsertProfilePhoto :exec
 INSERT INTO profile_photos (user_id, photo_url, photo_order)
 VALUES (sqlc.arg(user_id), sqlc.arg(photo_url), sqlc.arg(photo_order)::smallint);
+
+-- name: GetPublicProfile :one
+SELECT
+    u.id,
+    u.display_name,
+    u.avatar_url,
+    u.bio,
+    (SELECT count(*) FROM follows WHERE followee_id = u.id)   AS follower_count,
+    (SELECT count(*) FROM follows WHERE follower_id = u.id)   AS following_count,
+    EXISTS (
+        SELECT 1 FROM follows
+        WHERE follower_id = sqlc.arg(viewer_id) AND followee_id = u.id
+    ) AS is_following
+FROM users u
+WHERE u.id = sqlc.arg(target_id);
+
+-- name: FollowUser :exec
+INSERT INTO follows (follower_id, followee_id)
+VALUES (sqlc.arg(follower_id), sqlc.arg(followee_id))
+ON CONFLICT DO NOTHING;
+
+-- name: UnfollowUser :exec
+DELETE FROM follows
+WHERE follower_id = sqlc.arg(follower_id) AND followee_id = sqlc.arg(followee_id);

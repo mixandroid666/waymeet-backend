@@ -102,14 +102,22 @@ type Story struct {
 	ExpiresAt time.Time
 }
 
-// FeedSource tells the client which timeline it received: the personalized
-// "home" feed (viewer + follows) or the "global" discovery fallback used when
-// the viewer follows no one yet, so the feed is never empty.
+// FeedSource tells the client which timeline it received.
 type FeedSource string
 
 const (
 	SourceHome   FeedSource = "home"
 	SourceGlobal FeedSource = "global"
+	SourceNearby FeedSource = "nearby"
+)
+
+// FeedFilter is the timeline variant requested by the client.
+type FeedFilter string
+
+const (
+	FilterFollower FeedFilter = "follower" // viewer + followed users
+	FilterNearby   FeedFilter = "nearby"   // geographically nearby (not yet implemented)
+	FilterGlobal   FeedFilter = "global"   // all posts
 )
 
 // FeedPage is a page of the timeline plus paging metadata.
@@ -119,55 +127,19 @@ type FeedPage struct {
 	NextOffset *int32 // nil when there are no more pages
 }
 
-// HomeFeed returns a page of the viewer's home timeline. When the personalized
-// timeline is empty on the first page (a brand-new account that follows no one),
-// it falls back to a recent global timeline so the screen always has content.
-func (s *Service) HomeFeed(ctx context.Context, viewerID string, limit, offset int32) (*FeedPage, error) {
+// HomeFeed returns a page of the timeline for the requested filter. FilterNearby
+// returns an empty page (not yet implemented). FilterGlobal returns all posts.
+// FilterFollower (default) returns the viewer's own posts plus followed users.
+func (s *Service) HomeFeed(ctx context.Context, viewerID string, limit, offset int32, filter FeedFilter) (*FeedPage, error) {
 	viewer, err := parseUUID(viewerID)
 	if err != nil {
 		return nil, err
 	}
 	limit = clampLimit(limit)
 
-	rows, err := s.db.Queries.ListHomeTimeline(ctx, dbgen.ListHomeTimelineParams{
-		ViewerID: viewer,
-		Off:      offset,
-		Lim:      limit,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	source := SourceHome
-	posts := make([]Post, 0, len(rows))
-	for _, r := range rows {
-		posts = append(posts, Post{
-			ID:              uuidString(r.ID),
-			AuthorID:        uuidString(r.AuthorID),
-			AuthorName:      deref(r.AuthorName),
-			AuthorAvatarURL: deref(r.AuthorAvatarUrl),
-			Body:            r.Body,
-			CreatedAt:       r.CreatedAt.Time,
-			LikeCount:       r.LikeCount,
-			CommentCount:    r.CommentCount,
-			LikedByViewer:   r.LikedByViewer,
-			Media:           parseMediaItems(r.MediaItems),
-			Location:        locationOf(r.LocLatitude, r.LocLongitude, r.LocName),
-		})
-	}
-
-	// Fallback: if the viewer follows no one, their home feed contains only
-	// their own posts. Detect that and switch to the global discovery timeline
-	// so they see content from everyone, not just themselves.
-	hasFollowedContent := false
-	for _, p := range posts {
-		if p.AuthorID != viewerID {
-			hasFollowedContent = true
-			break
-		}
-	}
-	if !hasFollowedContent && offset == 0 {
-		gRows, err := s.db.Queries.ListGlobalTimeline(ctx, dbgen.ListGlobalTimelineParams{
+	switch filter {
+	case FilterGlobal:
+		rows, err := s.db.Queries.ListGlobalTimeline(ctx, dbgen.ListGlobalTimelineParams{
 			ViewerID: viewer,
 			Off:      offset,
 			Lim:      limit,
@@ -175,9 +147,8 @@ func (s *Service) HomeFeed(ctx context.Context, viewerID string, limit, offset i
 		if err != nil {
 			return nil, err
 		}
-		source = SourceGlobal
-		posts = make([]Post, 0, len(gRows)) // replace home posts, don't append
-		for _, r := range gRows {
+		posts := make([]Post, 0, len(rows))
+		for _, r := range rows {
 			posts = append(posts, Post{
 				ID:              uuidString(r.ID),
 				AuthorID:        uuidString(r.AuthorID),
@@ -192,15 +163,51 @@ func (s *Service) HomeFeed(ctx context.Context, viewerID string, limit, offset i
 				Location:        locationOf(r.LocLatitude, r.LocLongitude, r.LocName),
 			})
 		}
-	}
+		return &FeedPage{Posts: posts, Source: SourceGlobal, NextOffset: nextOffset(offset, limit, len(posts))}, nil
 
-	return &FeedPage{Posts: posts, Source: source, NextOffset: nextOffset(offset, limit, len(posts))}, nil
+	case FilterNearby:
+		return &FeedPage{Posts: nil, Source: SourceNearby, NextOffset: nil}, nil
+
+	default: // FilterFollower
+		rows, err := s.db.Queries.ListHomeTimeline(ctx, dbgen.ListHomeTimelineParams{
+			ViewerID: viewer,
+			Off:      offset,
+			Lim:      limit,
+		})
+		if err != nil {
+			return nil, err
+		}
+		posts := make([]Post, 0, len(rows))
+		for _, r := range rows {
+			posts = append(posts, Post{
+				ID:              uuidString(r.ID),
+				AuthorID:        uuidString(r.AuthorID),
+				AuthorName:      deref(r.AuthorName),
+				AuthorAvatarURL: deref(r.AuthorAvatarUrl),
+				Body:            r.Body,
+				CreatedAt:       r.CreatedAt.Time,
+				LikeCount:       r.LikeCount,
+				CommentCount:    r.CommentCount,
+				LikedByViewer:   r.LikedByViewer,
+				Media:           parseMediaItems(r.MediaItems),
+				Location:        locationOf(r.LocLatitude, r.LocLongitude, r.LocName),
+			})
+		}
+		return &FeedPage{Posts: posts, Source: SourceHome, NextOffset: nextOffset(offset, limit, len(posts))}, nil
+	}
 }
 
-// Stories returns active (non-expired) stories grouped by author, newest author
-// activity first, so the client can render one bubble per author.
-func (s *Service) Stories(ctx context.Context) ([]StoryAuthor, error) {
-	rows, err := s.db.Queries.ListActiveStories(ctx, storiesLimit)
+// Stories returns active (non-expired) stories from the viewer and the users
+// they follow, grouped by author, newest activity first.
+func (s *Service) Stories(ctx context.Context, viewerID string) ([]StoryAuthor, error) {
+	viewer, err := parseUUID(viewerID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Queries.ListActiveStories(ctx, dbgen.ListActiveStoriesParams{
+		ViewerID: viewer,
+		Lim:      storiesLimit,
+	})
 	if err != nil {
 		return nil, err
 	}

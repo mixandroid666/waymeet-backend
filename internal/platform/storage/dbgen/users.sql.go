@@ -306,3 +306,80 @@ func (q *Queries) UpdateUserLocation(ctx context.Context, arg UpdateUserLocation
 	_, err := q.db.Exec(ctx, updateUserLocation, arg.Lng, arg.Lat, arg.ID)
 	return err
 }
+
+const getPublicProfile = `-- name: GetPublicProfile :one
+SELECT
+    u.id,
+    u.display_name,
+    u.avatar_url,
+    u.bio,
+    (SELECT count(*) FROM follows WHERE followee_id = u.id)   AS follower_count,
+    (SELECT count(*) FROM follows WHERE follower_id = u.id)   AS following_count,
+    EXISTS (
+        SELECT 1 FROM follows
+        WHERE follower_id = $1 AND followee_id = u.id
+    ) AS is_following
+FROM users u
+WHERE u.id = $2
+`
+
+type GetPublicProfileParams struct {
+	ViewerID pgtype.UUID `json:"viewer_id"`
+	TargetID pgtype.UUID `json:"target_id"`
+}
+
+type GetPublicProfileRow struct {
+	ID             pgtype.UUID `json:"id"`
+	DisplayName    *string     `json:"display_name"`
+	AvatarUrl      *string     `json:"avatar_url"`
+	Bio            *string     `json:"bio"`
+	FollowerCount  int64       `json:"follower_count"`
+	FollowingCount int64       `json:"following_count"`
+	IsFollowing    bool        `json:"is_following"`
+}
+
+func (q *Queries) GetPublicProfile(ctx context.Context, arg GetPublicProfileParams) (GetPublicProfileRow, error) {
+	row := q.db.QueryRow(ctx, getPublicProfile, arg.ViewerID, arg.TargetID)
+	var i GetPublicProfileRow
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.Bio,
+		&i.FollowerCount,
+		&i.FollowingCount,
+		&i.IsFollowing,
+	)
+	return i, err
+}
+
+const followUser = `-- name: FollowUser :exec
+INSERT INTO follows (follower_id, followee_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type FollowUserParams struct {
+	FollowerID pgtype.UUID `json:"follower_id"`
+	FolloweeID pgtype.UUID `json:"followee_id"`
+}
+
+func (q *Queries) FollowUser(ctx context.Context, arg FollowUserParams) error {
+	_, err := q.db.Exec(ctx, followUser, arg.FollowerID, arg.FolloweeID)
+	return err
+}
+
+const unfollowUser = `-- name: UnfollowUser :exec
+DELETE FROM follows
+WHERE follower_id = $1 AND followee_id = $2
+`
+
+type UnfollowUserParams struct {
+	FollowerID pgtype.UUID `json:"follower_id"`
+	FolloweeID pgtype.UUID `json:"followee_id"`
+}
+
+func (q *Queries) UnfollowUser(ctx context.Context, arg UnfollowUserParams) error {
+	_, err := q.db.Exec(ctx, unfollowUser, arg.FollowerID, arg.FolloweeID)
+	return err
+}

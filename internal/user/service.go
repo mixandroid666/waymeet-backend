@@ -30,12 +30,13 @@ var validGenders = map[string]bool{"male": true, "female": true, "other": true}
 
 // Domain errors mapped to HTTP status codes by the handler.
 var (
-	ErrInvalidName   = errors.New("invalid display name")
-	ErrInvalidGender = errors.New("invalid gender")
-	ErrInvalidBirth  = errors.New("invalid birth date")
-	ErrUnderage      = errors.New("under the minimum age")
-	ErrBioTooLong    = errors.New("bio too long")
-	ErrNotFound      = errors.New("user not found")
+	ErrInvalidName      = errors.New("invalid display name")
+	ErrInvalidGender    = errors.New("invalid gender")
+	ErrInvalidBirth     = errors.New("invalid birth date")
+	ErrUnderage         = errors.New("under the minimum age")
+	ErrBioTooLong       = errors.New("bio too long")
+	ErrNotFound         = errors.New("user not found")
+	ErrCannotFollowSelf = errors.New("cannot follow yourself")
 )
 
 // Service implements profile read/update.
@@ -48,6 +49,17 @@ type Service struct {
 // NewService wires the user service.
 func NewService(db *storage.DB, media mediastore.Store, log *slog.Logger) *Service {
 	return &Service{db: db, media: media, log: log}
+}
+
+// PublicProfile is another user's profile as seen by a viewer.
+type PublicProfile struct {
+	ID             string
+	DisplayName    string
+	AvatarURL      string
+	Bio            string
+	FollowerCount  int64
+	FollowingCount int64
+	IsFollowing    bool
 }
 
 // Profile is a user's public-facing profile.
@@ -211,6 +223,73 @@ func (s *Service) Update(ctx context.Context, userID string, in UpdateProfileInp
 	p.FollowingCount, _ = s.db.Queries.CountFollowing(ctx, uid)
 
 	return p, nil
+}
+
+// GetPublicProfile returns a user's public profile as seen by the viewer,
+// including whether the viewer already follows them.
+func (s *Service) GetPublicProfile(ctx context.Context, viewerID, targetID string) (*PublicProfile, error) {
+	viewer, err := parseUUID(viewerID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	target, err := parseUUID(targetID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	row, err := s.db.Queries.GetPublicProfile(ctx, dbgen.GetPublicProfileParams{
+		ViewerID: viewer,
+		TargetID: target,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &PublicProfile{
+		ID:             uuidString(row.ID),
+		DisplayName:    deref(row.DisplayName),
+		AvatarURL:      deref(row.AvatarUrl),
+		Bio:            deref(row.Bio),
+		FollowerCount:  row.FollowerCount,
+		FollowingCount: row.FollowingCount,
+		IsFollowing:    row.IsFollowing,
+	}, nil
+}
+
+// Follow records that followerID follows followeeID (idempotent).
+func (s *Service) Follow(ctx context.Context, followerID, followeeID string) error {
+	follower, err := parseUUID(followerID)
+	if err != nil {
+		return ErrNotFound
+	}
+	followee, err := parseUUID(followeeID)
+	if err != nil {
+		return ErrNotFound
+	}
+	if follower == followee {
+		return ErrCannotFollowSelf
+	}
+	return s.db.Queries.FollowUser(ctx, dbgen.FollowUserParams{
+		FollowerID: follower,
+		FolloweeID: followee,
+	})
+}
+
+// Unfollow removes followerID's follow of followeeID (idempotent).
+func (s *Service) Unfollow(ctx context.Context, followerID, followeeID string) error {
+	follower, err := parseUUID(followerID)
+	if err != nil {
+		return ErrNotFound
+	}
+	followee, err := parseUUID(followeeID)
+	if err != nil {
+		return ErrNotFound
+	}
+	return s.db.Queries.UnfollowUser(ctx, dbgen.UnfollowUserParams{
+		FollowerID: follower,
+		FolloweeID: followee,
+	})
 }
 
 // --- helpers ---------------------------------------------------------------

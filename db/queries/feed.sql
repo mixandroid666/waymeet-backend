@@ -25,7 +25,7 @@ VALUES ($1, $2, $3, $4)
 RETURNING id, post_id, latitude, longitude, location_name, created_at;
 
 -- name: ListHomeTimeline :many
--- Fan-out-on-read timeline: posts by the viewer and everyone they follow.
+-- Home timeline: the viewer's own posts plus posts from users they follow.
 -- Each row carries its author, denormalized counts, the viewer's like state,
 -- all media in global order as a JSON array, and an optional location.
 SELECT
@@ -90,8 +90,8 @@ ORDER BY p.created_at DESC
 LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: ListActiveStories :many
--- Non-expired stories with their author, newest first. The service groups these
--- by author into the story strip shown above the timeline.
+-- Non-expired stories from users the viewer follows, plus the viewer's own
+-- stories. Newest first so the service can group them into the story strip.
 SELECT
     s.id,
     s.author_id,
@@ -103,6 +103,12 @@ SELECT
 FROM stories s
 JOIN users u ON u.id = s.author_id
 WHERE s.expires_at > now()
+  AND (
+    s.author_id = sqlc.arg(viewer_id)
+    OR s.author_id IN (
+        SELECT followee_id FROM follows WHERE follower_id = sqlc.arg(viewer_id)
+    )
+  )
 ORDER BY s.created_at DESC
 LIMIT sqlc.arg(lim);
 

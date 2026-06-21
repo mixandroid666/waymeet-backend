@@ -319,9 +319,20 @@ SELECT
 FROM stories s
 JOIN users u ON u.id = s.author_id
 WHERE s.expires_at > now()
+  AND (
+    s.author_id = $1
+    OR s.author_id IN (
+        SELECT followee_id FROM follows WHERE follower_id = $1
+    )
+  )
 ORDER BY s.created_at DESC
-LIMIT $1
+LIMIT $2
 `
+
+type ListActiveStoriesParams struct {
+	ViewerID pgtype.UUID `json:"viewer_id"`
+	Lim      int32       `json:"lim"`
+}
 
 type ListActiveStoriesRow struct {
 	ID              pgtype.UUID        `json:"id"`
@@ -333,10 +344,9 @@ type ListActiveStoriesRow struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
-// Non-expired stories with their author, newest first. The service groups these
-// by author into the story strip shown above the timeline.
-func (q *Queries) ListActiveStories(ctx context.Context, lim int32) ([]ListActiveStoriesRow, error) {
-	rows, err := q.db.Query(ctx, listActiveStories, lim)
+// Non-expired stories from followed users and the viewer, newest first.
+func (q *Queries) ListActiveStories(ctx context.Context, arg ListActiveStoriesParams) ([]ListActiveStoriesRow, error) {
+	rows, err := q.db.Query(ctx, listActiveStories, arg.ViewerID, arg.Lim)
 	if err != nil {
 		return nil, err
 	}
