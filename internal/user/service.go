@@ -57,6 +57,8 @@ type PublicProfile struct {
 	DisplayName    string
 	AvatarURL      string
 	Bio            string
+	Gender         string
+	Age            int
 	FollowerCount  int64
 	FollowingCount int64
 	IsFollowing    bool
@@ -246,11 +248,17 @@ func (s *Service) GetPublicProfile(ctx context.Context, viewerID, targetID strin
 		}
 		return nil, err
 	}
+	age := 0
+	if row.Age != nil {
+		age = int(*row.Age)
+	}
 	return &PublicProfile{
 		ID:             uuidString(row.ID),
 		DisplayName:    deref(row.DisplayName),
 		AvatarURL:      deref(row.AvatarUrl),
 		Bio:            deref(row.Bio),
+		Gender:         deref(row.Gender),
+		Age:            age,
 		FollowerCount:  row.FollowerCount,
 		FollowingCount: row.FollowingCount,
 		IsFollowing:    row.IsFollowing,

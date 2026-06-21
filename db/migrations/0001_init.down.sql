@@ -1,7 +1,4 @@
 DROP TABLE IF EXISTS devices;
-DROP TABLE IF EXISTS messages;
-DROP TABLE IF EXISTS conversation_members;
-DROP TABLE IF EXISTS conversations;
 DROP TABLE IF EXISTS stories;
 DROP TABLE IF EXISTS comments;
 DROP TABLE IF EXISTS post_likes;

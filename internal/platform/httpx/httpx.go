@@ -3,8 +3,10 @@
 package httpx
 
 import (
+	"bufio"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"net/http"
 )
 
@@ -91,4 +93,13 @@ type statusWriter struct {
 func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
+}
+
+// Hijack delegates to the underlying ResponseWriter so WebSocket upgrades work.
+func (w *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, http.ErrNotSupported
+	}
+	return h.Hijack()
 }

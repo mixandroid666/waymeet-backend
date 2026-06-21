@@ -78,6 +78,13 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 	return s.tokens.Middleware(next)
 }
 
+// ParseAccess validates an access token string and returns the user ID.
+// Used by non-middleware callers that receive the token out-of-band (e.g.
+// WebSocket upgrades where the token arrives as a query parameter).
+func (s *Service) ParseAccess(token string) (string, error) {
+	return s.tokens.ParseAccess(token)
+}
+
 // OTPChallenge is returned after register/resend so the client can show the
 // verification screen. DebugCode is populated only outside production.
 type OTPChallenge struct {

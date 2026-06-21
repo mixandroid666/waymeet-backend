@@ -61,6 +61,8 @@ SELECT
     u.display_name,
     u.avatar_url,
     u.bio,
+    u.gender,
+    date_part('year', age(u.birth_date))::int AS age,
     (SELECT count(*) FROM follows WHERE followee_id = u.id)   AS follower_count,
     (SELECT count(*) FROM follows WHERE follower_id = u.id)   AS following_count,
     EXISTS (

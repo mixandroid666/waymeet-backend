@@ -313,6 +313,8 @@ SELECT
     u.display_name,
     u.avatar_url,
     u.bio,
+    u.gender,
+    date_part('year', age(u.birth_date))::int AS age,
     (SELECT count(*) FROM follows WHERE followee_id = u.id)   AS follower_count,
     (SELECT count(*) FROM follows WHERE follower_id = u.id)   AS following_count,
     EXISTS (
@@ -333,6 +335,8 @@ type GetPublicProfileRow struct {
 	DisplayName    *string     `json:"display_name"`
 	AvatarUrl      *string     `json:"avatar_url"`
 	Bio            *string     `json:"bio"`
+	Gender         *string     `json:"gender"`
+	Age            *int32      `json:"age"`
 	FollowerCount  int64       `json:"follower_count"`
 	FollowingCount int64       `json:"following_count"`
 	IsFollowing    bool        `json:"is_following"`
@@ -346,6 +350,8 @@ func (q *Queries) GetPublicProfile(ctx context.Context, arg GetPublicProfilePara
 		&i.DisplayName,
 		&i.AvatarUrl,
 		&i.Bio,
+		&i.Gender,
+		&i.Age,
 		&i.FollowerCount,
 		&i.FollowingCount,
 		&i.IsFollowing,

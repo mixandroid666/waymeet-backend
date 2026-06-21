@@ -68,6 +68,8 @@ type publicProfileDTO struct {
 	DisplayName    string `json:"display_name"`
 	AvatarURL      string `json:"avatar_url"`
 	Bio            string `json:"bio"`
+	Gender         string `json:"gender"`
+	Age            int    `json:"age"`
 	FollowerCount  int64  `json:"follower_count"`
 	FollowingCount int64  `json:"following_count"`
 	IsFollowing    bool   `json:"is_following"`
@@ -315,6 +317,8 @@ func (h *Handler) getUser(w http.ResponseWriter, r *http.Request) {
 		DisplayName:    profile.DisplayName,
 		AvatarURL:      profile.AvatarURL,
 		Bio:            profile.Bio,
+		Gender:         profile.Gender,
+		Age:            profile.Age,
 		FollowerCount:  profile.FollowerCount,
 		FollowingCount: profile.FollowingCount,
 		IsFollowing:    profile.IsFollowing,

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"ruammit-backend/internal/auth"
+	"ruammit-backend/internal/chat"
 	"ruammit-backend/internal/feed"
 	"ruammit-backend/internal/platform/config"
 	"ruammit-backend/internal/platform/httpx"
@@ -24,7 +25,10 @@ import (
 // New builds the configured *http.Server, ready to ListenAndServe.
 func New(cfg config.Config, log *slog.Logger, db *storage.DB) *http.Server {
 	mux := http.NewServeMux()
-	registerRoutes(mux, cfg, log, db)
+
+	// The chat hub needs a context so it can be stopped on server shutdown.
+	hubCtx, hubCancel := context.WithCancel(context.Background())
+	registerRoutes(mux, cfg, log, db, hubCtx)
 
 	handler := httpx.Chain(mux,
 		httpx.CORS,
@@ -32,7 +36,7 @@ func New(cfg config.Config, log *slog.Logger, db *storage.DB) *http.Server {
 		httpx.Logger(log),
 	)
 
-	return &http.Server{
+	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
@@ -40,11 +44,14 @@ func New(cfg config.Config, log *slog.Logger, db *storage.DB) *http.Server {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+	// Cancel the hub when graceful shutdown begins so all WS goroutines exit cleanly.
+	srv.RegisterOnShutdown(hubCancel)
+	return srv
 }
 
 // registerRoutes mounts the route tree. As modules land, each gets a
 // RegisterRoutes(mux, deps) call here (auth, feed, location, chat, ...).
-func registerRoutes(mux *http.ServeMux, cfg config.Config, log *slog.Logger, db *storage.DB) {
+func registerRoutes(mux *http.ServeMux, cfg config.Config, log *slog.Logger, db *storage.DB, hubCtx context.Context) {
 	mux.HandleFunc("GET /healthz", health)
 	mux.HandleFunc("GET /api/v1/healthz", health)
 	mux.HandleFunc("GET /readyz", readiness(db))
@@ -70,9 +77,12 @@ func registerRoutes(mux *http.ServeMux, cfg config.Config, log *slog.Logger, db 
 	userSvc := user.NewService(db, mediaStore, log)
 	user.NewHandler(userSvc, authSvc, log).RegisterRoutes(mux)
 
-	// TODO: mount remaining feature modules, e.g.
-	//   location.RegisterRoutes(mux, locationService)
-	//   chat.RegisterRoutes(mux, chatHub)
+	// Chat: 1v1 real-time messaging over WebSocket.
+	chatHub := chat.NewHub(log)
+	go chatHub.Run(hubCtx)
+	chatSvc := chat.NewService(chatHub, db, log)
+	chatSvc.StartPresenceWorker(hubCtx)
+	chat.NewHandler(chatHub, chatSvc, authSvc, log).RegisterRoutes(mux)
 }
 
 // otpSender chooses how OTP codes are delivered. With a Resend API key set,
