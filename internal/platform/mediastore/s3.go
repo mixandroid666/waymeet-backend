@@ -24,7 +24,10 @@ type S3Store struct {
 
 // NewS3 builds an S3Store. Pass a non-empty endpoint to target MinIO or any
 // S3-compatible service; leave it empty to use AWS S3 directly.
-func NewS3(endpoint, region, bucket, accessKey, secretKey string) (*S3Store, error) {
+// mediaBaseURL overrides the public URL prefix used in stored media URLs (useful
+// when the internal upload endpoint differs from the client-facing URL, e.g. in
+// local dev where the backend uses localhost but clients use 10.0.2.2).
+func NewS3(endpoint, region, bucket, accessKey, secretKey, mediaBaseURL string) (*S3Store, error) {
 	cfg, err := config.LoadDefaultConfig(context.Background(),
 		config.WithRegion(region),
 		config.WithCredentialsProvider(
@@ -44,9 +47,12 @@ func NewS3(endpoint, region, bucket, accessKey, secretKey string) (*S3Store, err
 	}
 
 	var publicBase string
-	if endpoint != "" {
+	switch {
+	case mediaBaseURL != "":
+		publicBase = strings.TrimRight(mediaBaseURL, "/") + "/" + bucket
+	case endpoint != "":
 		publicBase = strings.TrimRight(endpoint, "/") + "/" + bucket
-	} else {
+	default:
 		publicBase = fmt.Sprintf("https://%s.s3.%s.amazonaws.com", bucket, region)
 	}
 

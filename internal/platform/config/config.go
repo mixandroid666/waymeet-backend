@@ -20,11 +20,12 @@ type Config struct {
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
 
-	S3Endpoint  string
-	S3Region    string
-	S3Bucket    string
-	S3AccessKey string
-	S3SecretKey string
+	S3Endpoint      string
+	S3Region        string
+	S3Bucket        string
+	S3AccessKey     string
+	S3SecretKey     string
+	S3MediaBaseURL  string // public base URL for media files served to clients
 
 	// Local media storage (used until S3/MinIO upload is wired). Uploaded post
 	// images/videos are written under UploadDir and served at MediaURLPrefix.
@@ -52,11 +53,12 @@ func Load() Config {
 		AccessTokenTTL:  envDuration("ACCESS_TOKEN_TTL", 15*time.Minute),
 		RefreshTokenTTL: envDuration("REFRESH_TOKEN_TTL", 30*24*time.Hour),
 
-		S3Endpoint:  env("S3_ENDPOINT", "http://localhost:9000"),
-		S3Region:    env("S3_REGION", "us-east-1"),
-		S3Bucket:    env("S3_BUCKET", "waymeet-media"),
-		S3AccessKey: env("S3_ACCESS_KEY", "minioadmin"),
-		S3SecretKey: env("S3_SECRET_KEY", "minioadmin"),
+		S3Endpoint:     env("S3_ENDPOINT", "http://localhost:9000"),
+		S3Region:       env("S3_REGION", "us-east-1"),
+		S3Bucket:       env("S3_BUCKET", "waymeet-media"),
+		S3AccessKey:    env("S3_ACCESS_KEY", "minioadmin"),
+		S3SecretKey:    env("S3_SECRET_KEY", "minioadmin"),
+		S3MediaBaseURL: env("S3_MEDIA_BASE_URL", ""),
 
 		UploadDir:      env("UPLOAD_DIR", "./uploads"),
 		MediaURLPrefix: env("MEDIA_URL_PREFIX", "/media"),

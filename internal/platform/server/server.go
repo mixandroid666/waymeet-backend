@@ -105,7 +105,7 @@ func otpSender(cfg config.Config, log *slog.Logger) auth.Sender {
 // back to the local filesystem store for dev environments without MinIO running.
 func newMediaStore(cfg config.Config, log *slog.Logger) mediastore.Store {
 	if cfg.S3Bucket != "" && cfg.S3AccessKey != "" {
-		s, err := mediastore.NewS3(cfg.S3Endpoint, cfg.S3Region, cfg.S3Bucket, cfg.S3AccessKey, cfg.S3SecretKey)
+		s, err := mediastore.NewS3(cfg.S3Endpoint, cfg.S3Region, cfg.S3Bucket, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3MediaBaseURL)
 		if err == nil {
 			log.Info("media store: s3", "bucket", cfg.S3Bucket, "endpoint", cfg.S3Endpoint)
 			return s
