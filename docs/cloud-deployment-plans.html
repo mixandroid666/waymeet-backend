@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WayMeet Backend — Cloud Deployment Plans</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    color: #1f2933;
+    font-size: 11px;
+    line-height: 1.45;
+    margin: 0;
+  }
+  h1 { font-size: 22px; margin: 0 0 2px; color: #0b3d63; }
+  h2 { font-size: 14px; margin: 22px 0 8px; color: #0b3d63; border-bottom: 2px solid #d6e4f0; padding-bottom: 4px; }
+  .sub { color: #647584; font-size: 11px; margin: 0 0 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 4px; }
+  th, td { border: 1px solid #cdd8e2; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #0b3d63; color: #fff; font-weight: 600; }
+  tbody tr:nth-child(even) { background: #f4f8fb; }
+  .stack th { background: #14507d; }
+  .plans th { width: 25%; }
+  .plans td.label { background: #eef4f9; font-weight: 600; color: #0b3d63; white-space: nowrap; }
+  .pill { display: inline-block; font-size: 9.5px; padding: 1px 7px; border-radius: 10px; color: #fff; font-weight: 600; }
+  .green { background: #1b8a5a; }
+  .amber { background: #c77700; }
+  .blue  { background: #14507d; }
+  .reco { background: #e7f6ed; border: 1px solid #1b8a5a; border-radius: 6px; padding: 10px 12px; margin: 10px 0; }
+  .reco b { color: #1b8a5a; }
+  ul { margin: 4px 0 4px 16px; padding: 0; }
+  li { margin: 2px 0; }
+  .price { font-weight: 700; color: #0b3d63; }
+  .foot { margin-top: 18px; color: #8595a4; font-size: 9.5px; border-top: 1px solid #dde6ee; padding-top: 6px; }
+  .pro { color: #1b8a5a; }
+  .con { color: #b23b3b; }
+  .two { display: flex; gap: 14px; }
+  .two > div { flex: 1; }
+</style>
+</head>
+<body>
+
+<h1>WayMeet Backend — Cloud Deployment Plans</h1>
+<p class="sub">Go modular monolith + worker · Postgres/PostGIS · Redis · S3 storage &nbsp;|&nbsp; Goal: trigger the API from anywhere, low budget &nbsp;|&nbsp; 2026-06-23</p>
+
+<h2>Tech stack</h2>
+<table class="stack">
+  <thead><tr><th style="width:28%">Layer</th><th>Technology</th></tr></thead>
+  <tbody>
+    <tr><td>Language / runtime</td><td>Go 1.26 — modular monolith (<code>cmd/api</code>) + always-on worker (<code>cmd/worker</code>)</td></tr>
+    <tr><td>HTTP</td><td>stdlib net/http (ServeMux), port 8080</td></tr>
+    <tr><td>Database</td><td><b>PostgreSQL 16 + PostGIS</b> (geospatial "nearby people") — requires the PostGIS extension</td></tr>
+    <tr><td>DB access</td><td>sqlc + pgx/v5, golang-migrate</td></tr>
+    <tr><td>Cache / queue / realtime</td><td>Redis (chat pub/sub, cache, asynq jobs) + WebSockets</td></tr>
+    <tr><td>Object storage</td><td>S3-compatible (MinIO locally) — presigned uploads for images/video/voice</td></tr>
+    <tr><td>Auth</td><td>JWT access/refresh (+ planned OAuth)</td></tr>
+    <tr><td>External SaaS</td><td>Firebase FCM (push) · Resend (email OTP) — kept as-is</td></tr>
+    <tr><td>Packaging</td><td>Multi-stage Docker → distroless static image</td></tr>
+  </tbody>
+</table>
+<p class="sub"><b>Must be hosted:</b> api container · worker container (always-on) · Postgres+PostGIS · Redis · S3 bucket. The PostGIS extension and the always-on worker are what rule out the cheapest pure-serverless shortcuts.</p>
+
+<h2>Plan comparison</h2>
+<table class="plans">
+  <thead>
+    <tr>
+      <th>&nbsp;</th>
+      <th>Plan A — Single VPS<br><span class="pill green">cheapest</span></th>
+      <th>Plan B — Managed PaaS<br><span class="pill blue">recommended</span></th>
+      <th>Plan C — Google Cloud<br><span class="pill amber">scalable</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td class="label">Idea</td>
+      <td>One small server running your existing docker-compose + api/worker</td>
+      <td>Push 2 container images; rent managed Postgres + Redis + storage</td>
+      <td>Cloud-native on GCP (you already use Firebase)</td></tr>
+    <tr><td class="label">Compute</td>
+      <td>Hetzner / DigitalOcean / Vultr VPS (2 vCPU / 4 GB)</td>
+      <td>Railway or Render (api + worker from same Dockerfile)</td>
+      <td>Cloud Run: api scales to zero; worker min-instances=1</td></tr>
+    <tr><td class="label">Postgres+PostGIS</td>
+      <td>Your postgis/postgis container</td>
+      <td>Neon or Supabase (both ship PostGIS)</td>
+      <td>Cloud SQL (or Neon to cut cost)</td></tr>
+    <tr><td class="label">Redis</td>
+      <td>redis container</td>
+      <td>Upstash (free tier) or platform add-on</td>
+      <td>Upstash (Memorystore is pricey)</td></tr>
+    <tr><td class="label">Storage</td>
+      <td>MinIO container</td>
+      <td>Cloudflare R2 (no egress fees) or Supabase Storage</td>
+      <td>GCS (S3-interop) or R2</td></tr>
+    <tr><td class="label">HTTPS / domain</td>
+      <td>Caddy reverse proxy (auto Let's Encrypt)</td>
+      <td>Built in</td>
+      <td>Built in</td></tr>
+    <tr><td class="label">Est. cost / month</td>
+      <td><span class="price">$5 – 12</span></td>
+      <td><span class="price">$15 – 35</span></td>
+      <td><span class="price">$25 – 50</span></td></tr>
+    <tr><td class="label">Ops effort</td>
+      <td>High (you own backups, updates, uptime)</td>
+      <td>Low (managed backups, logs, deploy on push)</td>
+      <td>Medium (managed, but steeper setup)</td></tr>
+    <tr><td class="label">Scaling</td>
+      <td>Manual; single point of failure</td>
+      <td>Easy, no rebuild</td>
+      <td>Auto-scaling api</td></tr>
+    <tr><td class="label">Pros</td>
+      <td class="pro">Dirt cheap; zero code changes; identical to local</td>
+      <td class="pro">Best budget/ops balance; near free-tier; env-var swaps only</td>
+      <td class="pro">Auto-scale; tight Firebase/FCM integration; production-grade</td></tr>
+    <tr><td class="label">Cons</td>
+      <td class="con">You run everything; no redundancy</td>
+      <td class="con">More moving parts; cost creeps past free tiers</td>
+      <td class="con">Priciest; always-on worker + Memorystore are cost traps</td></tr>
+    <tr><td class="label">Best when</td>
+      <td>You just want it reachable at lowest cost</td>
+      <td>Low budget + low ops + room to grow</td>
+      <td>Traffic justifies autoscaling</td></tr>
+  </tbody>
+</table>
+
+<div class="reco">
+  <b>Recommendation:</b> Start with <b>Plan B</b> (Railway/Render + Neon or Supabase + Upstash + Cloudflare R2).
+  It stays near free-tier cost, needs <b>no code changes</b> — only env-var swaps for <code>DATABASE_URL</code>,
+  <code>REDIS_URL</code>, and <code>S3_*</code> — gives HTTPS API access from anywhere, and handles the always-on
+  worker cleanly. Drop to <b>Plan A</b> to squeeze cost to ~$5; move to <b>Plan C</b> when traffic demands autoscaling.
+</div>
+
+<h2>Before you migrate</h2>
+<ul>
+  <li>Your code uses the <b>AWS S3 SDK</b>, so any S3-compatible target (R2, Supabase, MinIO) works by setting <code>S3_ENDPOINT</code> + keys — no rewrite.</li>
+  <li>Confirm the Postgres host allows <code>CREATE EXTENSION postgis;</code> — Neon, Supabase, and Cloud SQL all do; many bargain hosts do not.</li>
+  <li>Build the worker image with <code>--build-arg CMD=worker</code>; the api uses the default <code>CMD=api</code>.</li>
+  <li>Keep Firebase FCM and Resend as external SaaS — only their credentials/keys move to the host's secret store.</li>
+</ul>
+
+<p class="foot">WayMeet backend — internal planning document. Cost estimates are approximate (2026) and depend on usage and free-tier eligibility.</p>
+
+</body>
+</html>

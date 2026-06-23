@@ -1,70 +1,17 @@
-time=2026-06-21T22:18:49.108+07:00 level=INFO msg="database connected"
-time=2026-06-21T22:18:49.109+07:00 level=INFO msg="media store: s3" bucket=waymeet-media endpoint=http://localhost:9000
-time=2026-06-21T22:18:49.109+07:00 level=INFO msg="notification: FCM disabled (FCM_CREDENTIALS_FILE not set)"
-time=2026-06-21T22:18:49.110+07:00 level=INFO msg="api listening" addr=:8080 env=development
-time=2026-06-21T22:18:49.244+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:18:50.784+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:18:52.323+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:18:53.862+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:18:55.391+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:18:56.914+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:18:58.432+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:18:59.952+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:01.487+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:03.026+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:04.544+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:06.065+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:07.591+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:09.112+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:10.654+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:12.174+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:13.702+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:15.231+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:16.753+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:18.274+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:20.288+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:21.816+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:23.353+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:25.362+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:26.889+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:28.411+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:29.926+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:31.455+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:32.982+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:34.501+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:36.029+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:37.545+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:39.078+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:40.605+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:42.150+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:43.677+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:45.206+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:46.719+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:48.245+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:49.782+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:51.811+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:53.340+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:54.867+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:56.384+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:57.909+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:19:59.449+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:00.989+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:02.513+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:04.051+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:05.565+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:07.093+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:08.612+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:10.629+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:12.157+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:13.685+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:15.705+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:17.724+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:19.238+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:20.760+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:22.297+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:23.814+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:25.354+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:26.874+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:20:28.403+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=401
-time=2026-06-21T22:30:16.986+07:00 level=INFO msg="shutting down" signal=terminated
-time=2026-06-21T22:30:16.987+07:00 level=INFO msg=stopped
+time=2026-06-23T16:01:24.218+07:00 level=INFO msg="database connected"
+time=2026-06-23T16:01:24.219+07:00 level=INFO msg="media store: s3" bucket=waymeet-media endpoint=http://localhost:9000
+time=2026-06-23T16:01:24.219+07:00 level=INFO msg="notification: FCM enabled"
+time=2026-06-23T16:01:24.219+07:00 level=INFO msg="api listening" addr=:8080 env=development
+time=2026-06-23T16:02:01.791+07:00 level=INFO msg=request method=GET path=/healthz status=200
+time=2026-06-23T16:02:01.956+07:00 level=INFO msg="otp issued (dev â€” not actually sent)" contact=+10000000099 code=294363
+time=2026-06-23T16:02:01.956+07:00 level=INFO msg=request method=POST path=/api/v1/auth/register status=201
+time=2026-06-23T16:03:59.626+07:00 level=INFO msg="otp email sent" contact=major_seventh@live.com
+time=2026-06-23T16:03:59.627+07:00 level=INFO msg=request method=POST path=/api/v1/auth/register status=201
+time=2026-06-23T16:04:29.151+07:00 level=INFO msg=request method=POST path=/api/v1/auth/verify-otp status=200
+time=2026-06-23T16:04:46.131+07:00 level=INFO msg=request method=PATCH path=/api/v1/users/me status=200
+time=2026-06-23T16:04:46.346+07:00 level=INFO msg=request method=GET path=/api/v1/feed/stories status=200
+time=2026-06-23T16:04:46.381+07:00 level=INFO msg=request method=GET path=/api/v1/ws/chat status=200
+time=2026-06-23T16:04:46.381+07:00 level=DEBUG msg="chat: registered" user=cdd94b8e-166b-490b-8662-0a1d57e15039
+time=2026-06-23T16:04:46.390+07:00 level=INFO msg=request method=GET path=/api/v1/feed status=200
+time=2026-06-23T16:04:46.408+07:00 level=INFO msg=request method=GET path=/api/v1/users/me status=200
+time=2026-06-23T16:04:47.445+07:00 level=INFO msg=request method=GET path=/api/v1/feed status=200

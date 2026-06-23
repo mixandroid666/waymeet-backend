@@ -61,8 +61,6 @@ type challengeResponse struct {
 	Message   string    `json:"message"`
 	Contact   string    `json:"contact"`
 	ExpiresAt time.Time `json:"expires_at"`
-	// DebugCode is included only outside production, to ease client testing.
-	DebugCode string `json:"debug_code,omitempty"`
 }
 
 type loginRequest struct {
@@ -114,7 +112,6 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		Message:   "Verification code sent.",
 		Contact:   challenge.Contact,
 		ExpiresAt: challenge.ExpiresAt,
-		DebugCode: challenge.DebugCode,
 	})
 }
 
@@ -161,7 +158,6 @@ func (h *Handler) resendOTP(w http.ResponseWriter, r *http.Request) {
 		Message:   "A new verification code was sent.",
 		Contact:   challenge.Contact,
 		ExpiresAt: challenge.ExpiresAt,
-		DebugCode: challenge.DebugCode,
 	})
 }
 

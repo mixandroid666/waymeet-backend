@@ -6,6 +6,8 @@
 # Env / secrets
 .env
 *.local
+# Firebase Admin SDK service-account key (server credential — never commit)
+*firebase-adminsdk*.json
 
 # Go
 /vendor/

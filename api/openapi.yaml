@@ -354,9 +354,6 @@ components:
         message: { type: string }
         contact: { type: string, description: Normalized contact }
         expires_at: { type: string, format: date-time }
-        debug_code:
-          type: string
-          description: DEV ONLY — the OTP, omitted in production
     TokenPair:
       type: object
       properties:

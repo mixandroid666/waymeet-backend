@@ -69,14 +69,13 @@ Create a pending account and send an OTP.
 {
   "message": "Verification code sent.",
   "contact": "you@example.com",     // normalized (lowercased email / digits-only phone)
-  "expires_at": "2026-06-17T17:39:32.134014+07:00",
-  "debug_code": "199317"            // DEV ONLY â€” omitted in production
+  "expires_at": "2026-06-17T17:39:32.134014+07:00"
 }
 ```
 
-> **`debug_code`** is returned only when the server is not in production, so you
-> can test the full flow without a real email/SMS provider. Do not depend on it
-> in production builds â€” it will be absent.
+> The OTP is **never** returned in the API response. It is delivered only via the
+> configured Sender — email (Resend) for email contacts. Get the code from the
+> email to verify.
 
 ### 3.2 `POST /api/v1/auth/verify-otp`
 
@@ -106,7 +105,7 @@ Invalidate the previous code and send a new one (60s cooldown).
 ```
 
 **Response `200 OK`** â€” same shape as register (`message`, `contact`,
-`expires_at`, dev `debug_code`).
+`expires_at`).
 
 ---
 
@@ -270,21 +269,21 @@ try {
   Login (and JWT access/refresh tokens) is the next endpoint.
 - **No display name collected at signup** â€” the `users.display_name` column is
   nullable and set later during profile setup.
-- OTP delivery is currently logged server-side only (dev). Real email/SMS
-  providers plug into the `Sender` interface on the backend.
+- OTP delivery for email goes through Resend (the `Sender` interface). Phone
+  contacts have no SMS provider yet and fall back to a server-side log.
 - Codes are stored only as bcrypt hashes; brute force is bounded by the expiry
   and attempt cap above.
 
 ## 8. Quick manual test (curl)
 
 ```bash
-# register (grab debug_code from the response)
+# register (the code is emailed via Resend — check the inbox)
 curl -s -X POST localhost:8080/api/v1/auth/register \
   -H 'Content-Type: application/json' \
   -d '{"contact_type":"email","contact":"you@example.com","password":"secret123"}'
 
-# verify (use the debug_code)
+# verify (use the code from the email)
 curl -s -X POST localhost:8080/api/v1/auth/verify-otp \
   -H 'Content-Type: application/json' \
-  -d '{"contact_type":"email","contact":"you@example.com","code":"199317"}'
+  -d '{"contact_type":"email","contact":"you@example.com","code":"123456"}'
 ```

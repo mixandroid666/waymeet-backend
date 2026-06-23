@@ -86,11 +86,11 @@ func (s *Service) ParseAccess(token string) (string, error) {
 }
 
 // OTPChallenge is returned after register/resend so the client can show the
-// verification screen. DebugCode is populated only outside production.
+// verification screen. The code itself is never returned — it is delivered only
+// via the configured Sender (email/SMS).
 type OTPChallenge struct {
 	Contact   string
 	ExpiresAt time.Time
-	DebugCode string
 }
 
 // RegisterInput is the validated, normalized register request.
@@ -156,9 +156,6 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*OTPChallenge
 	if err := s.sender.SendOTP(ctx, in.Contact, code); err != nil {
 		s.log.Error("failed to send otp", "err", err, "contact", in.Contact)
 		// The account + code are already persisted; the user can resend.
-	}
-	if !s.cfg.IsProduction() {
-		challenge.DebugCode = code
 	}
 	return challenge, nil
 }
@@ -299,9 +296,6 @@ func (s *Service) ResendOTP(ctx context.Context, in ResendInput) (*OTPChallenge,
 
 	if err := s.sender.SendOTP(ctx, in.Contact, code); err != nil {
 		s.log.Error("failed to send otp", "err", err, "contact", in.Contact)
-	}
-	if !s.cfg.IsProduction() {
-		challenge.DebugCode = code
 	}
 	return challenge, nil
 }
