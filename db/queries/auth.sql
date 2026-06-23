@@ -21,6 +21,9 @@ RETURNING id, status;
 UPDATE users SET password_hash = sqlc.arg(password_hash)::text, updated_at = now()
 WHERE id = sqlc.arg(id);
 
+-- name: GetCredentialsByID :one
+SELECT id, status, password_hash FROM users WHERE id = sqlc.arg(id);
+
 -- name: ActivateUser :exec
 UPDATE users SET status = 'active', verified_at = now(), updated_at = now()
 WHERE id = sqlc.arg(id);

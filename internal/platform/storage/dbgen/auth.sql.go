@@ -141,6 +141,23 @@ func (q *Queries) FindUserByPhone(ctx context.Context, phone string) (FindUserBy
 	return i, err
 }
 
+const getCredentialsByID = `-- name: GetCredentialsByID :one
+SELECT id, status, password_hash FROM users WHERE id = $1
+`
+
+type GetCredentialsByIDRow struct {
+	ID           pgtype.UUID `json:"id"`
+	Status       string      `json:"status"`
+	PasswordHash *string     `json:"password_hash"`
+}
+
+func (q *Queries) GetCredentialsByID(ctx context.Context, id pgtype.UUID) (GetCredentialsByIDRow, error) {
+	row := q.db.QueryRow(ctx, getCredentialsByID, id)
+	var i GetCredentialsByIDRow
+	err := row.Scan(&i.ID, &i.Status, &i.PasswordHash)
+	return i, err
+}
+
 const getLatestOTP = `-- name: GetLatestOTP :one
 SELECT id, code_hash, attempts, expires_at, created_at
 FROM otp_codes

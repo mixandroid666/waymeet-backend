@@ -19,9 +19,10 @@ import (
 
 // Tunables for the registration OTP flow.
 const (
-	purposeRegistration = "registration"
-	statusPending       = "pending_verification"
-	statusActive        = "active"
+	purposeRegistration  = "registration"
+	purposePasswordReset = "password_reset"
+	statusPending        = "pending_verification"
+	statusActive         = "active"
 
 	otpTTL         = 10 * time.Minute
 	maxAttempts    = 5
@@ -40,6 +41,7 @@ var (
 	ErrWeakPassword       = errors.New("password too short")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrNotVerified        = errors.New("account not verified")
+	ErrWrongPassword      = errors.New("current password is incorrect")
 )
 
 // ContactType is how a user signs up: by email or phone.
@@ -414,6 +416,168 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 		return err
 	}
 	return s.db.Queries.RevokeRefreshToken(ctx, row.ID)
+}
+
+// --- password management ---------------------------------------------------
+
+// ChangePassword verifies the caller's current password and replaces it.
+// Existing sessions are intentionally left intact.
+func (s *Service) ChangePassword(ctx context.Context, userID, current, newPassword string) error {
+	if len(newPassword) < minPasswordLen {
+		return ErrWeakPassword
+	}
+	var uid pgtype.UUID
+	if err := uid.Scan(userID); err != nil {
+		return ErrInvalidCredentials
+	}
+	row, err := s.db.Queries.GetCredentialsByID(ctx, uid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrInvalidCredentials
+		}
+		return err
+	}
+	if row.PasswordHash == nil || !checkSecret(*row.PasswordHash, current) {
+		return ErrWrongPassword
+	}
+	hash, err := hashSecret(newPassword)
+	if err != nil {
+		return err
+	}
+	return s.db.Queries.SetUserPassword(ctx, dbgen.SetUserPasswordParams{
+		PasswordHash: hash, ID: uid,
+	})
+}
+
+// ForgotPasswordInput is the validated, normalized forgot-password request.
+type ForgotPasswordInput struct {
+	Type    ContactType
+	Contact string
+}
+
+// ForgotPassword issues a password-reset OTP to an active account. To avoid
+// account enumeration it never reports whether the contact exists: unknown,
+// unverified, and on-cooldown contacts are all silently treated as success.
+func (s *Service) ForgotPassword(ctx context.Context, in ForgotPasswordInput) error {
+	q := s.db.Queries
+
+	userID, status, err := s.findUser(ctx, q, in.Type, in.Contact)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil // unknown contact — pretend success
+		}
+		return err
+	}
+	if status != statusActive {
+		return nil // pending/other — can't reset, pretend success
+	}
+
+	// Cooldown: silently skip if a reset code was sent recently.
+	if latest, err := q.GetLatestOTP(ctx, dbgen.GetLatestOTPParams{
+		UserID: userID, Purpose: purposePasswordReset,
+	}); err == nil {
+		if time.Since(latest.CreatedAt.Time) < resendCooldown {
+			return nil
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+
+	code, err := generateOTP()
+	if err != nil {
+		return err
+	}
+	codeHash, err := hashSecret(code)
+	if err != nil {
+		return err
+	}
+
+	err = s.withTx(ctx, func(tq *dbgen.Queries) error {
+		if err := tq.InvalidatePendingOTPs(ctx, dbgen.InvalidatePendingOTPsParams{
+			UserID: userID, Purpose: purposePasswordReset,
+		}); err != nil {
+			return err
+		}
+		_, err := tq.CreateOTP(ctx, dbgen.CreateOTPParams{
+			UserID:    userID,
+			Purpose:   purposePasswordReset,
+			CodeHash:  codeHash,
+			ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(otpTTL), Valid: true},
+		})
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := s.sender.SendOTP(ctx, in.Contact, code); err != nil {
+		s.log.Error("failed to send password-reset otp", "err", err, "contact", in.Contact)
+	}
+	return nil
+}
+
+// ResetPasswordInput is the validated reset-password request.
+type ResetPasswordInput struct {
+	Type        ContactType
+	Contact     string
+	Code        string
+	NewPassword string
+}
+
+// ResetPassword verifies a password-reset OTP and sets a new password. Error
+// responses are kept generic (ErrInvalidCode) for unknown / unverified contacts
+// so the endpoint does not reveal whether an account exists.
+func (s *Service) ResetPassword(ctx context.Context, in ResetPasswordInput) error {
+	if len(in.NewPassword) < minPasswordLen {
+		return ErrWeakPassword
+	}
+	q := s.db.Queries
+
+	userID, status, err := s.findUser(ctx, q, in.Type, in.Contact)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrInvalidCode
+		}
+		return err
+	}
+	if status != statusActive {
+		return ErrInvalidCode
+	}
+
+	otp, err := q.GetLatestOTP(ctx, dbgen.GetLatestOTPParams{
+		UserID: userID, Purpose: purposePasswordReset,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrInvalidCode
+		}
+		return err
+	}
+	if time.Now().After(otp.ExpiresAt.Time) {
+		return ErrCodeExpired
+	}
+	if otp.Attempts >= maxAttempts {
+		return ErrTooManyAttempts
+	}
+	if !checkSecret(otp.CodeHash, in.Code) {
+		if err := q.IncrementOTPAttempts(ctx, otp.ID); err != nil {
+			s.log.Error("failed to record otp attempt", "err", err)
+		}
+		return ErrInvalidCode
+	}
+
+	hash, err := hashSecret(in.NewPassword)
+	if err != nil {
+		return err
+	}
+	return s.withTx(ctx, func(tq *dbgen.Queries) error {
+		if err := tq.ConsumeOTP(ctx, otp.ID); err != nil {
+			return err
+		}
+		return tq.SetUserPassword(ctx, dbgen.SetUserPasswordParams{
+			PasswordHash: hash, ID: userID,
+		})
+	})
 }
 
 // issueTokens mints an access token and persists a new refresh token using the

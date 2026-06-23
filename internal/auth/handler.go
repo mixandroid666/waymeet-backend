@@ -33,7 +33,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/login", h.login)
 	mux.HandleFunc("POST /api/v1/auth/refresh", h.refresh)
 	mux.HandleFunc("POST /api/v1/auth/logout", h.logout)
+	mux.HandleFunc("POST /api/v1/auth/password/forgot", h.forgotPassword)
+	mux.HandleFunc("POST /api/v1/auth/password/reset", h.resetPassword)
 
+	mux.Handle("PATCH /api/v1/auth/password", h.svc.Middleware(http.HandlerFunc(h.changePassword)))
 	// Example protected route: returns the caller's id from their access token.
 	mux.Handle("GET /api/v1/auth/me", h.svc.Middleware(http.HandlerFunc(h.me)))
 }
@@ -71,6 +74,27 @@ type loginRequest struct {
 
 type refreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
+}
+
+type changePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+type forgotPasswordRequest struct {
+	ContactType string `json:"contact_type"`
+	Contact     string `json:"contact"`
+}
+
+type resetPasswordRequest struct {
+	ContactType string `json:"contact_type"`
+	Contact     string `json:"contact"`
+	Code        string `json:"code"`
+	NewPassword string `json:"new_password"`
+}
+
+type messageResponse struct {
+	Message string `json:"message"`
 }
 
 type userPayload struct {
@@ -213,6 +237,80 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// changePassword updates the authenticated caller's password after verifying
+// their current one. Existing sessions are left intact.
+func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request) {
+	userID, ok := UserIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized", "")
+		return
+	}
+	var req changePasswordRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	if len(req.NewPassword) < minPasswordLen {
+		httpx.Error(w, http.StatusBadRequest, "validation_error", "Password must be at least 6 characters")
+		return
+	}
+
+	if err := h.svc.ChangePassword(r.Context(), userID, req.CurrentPassword, req.NewPassword); err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// forgotPassword issues a password-reset code. It always returns a generic
+// success (even for unknown contacts) so it cannot be used to probe for
+// registered accounts.
+func (h *Handler) forgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req forgotPasswordRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	ct, contact, ok := h.validateContact(w, req.ContactType, req.Contact)
+	if !ok {
+		return
+	}
+
+	if err := h.svc.ForgotPassword(r.Context(), ForgotPasswordInput{Type: ct, Contact: contact}); err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, messageResponse{
+		Message: "If an account exists for that contact, a reset code has been sent.",
+	})
+}
+
+// resetPassword verifies a password-reset code and sets a new password.
+func (h *Handler) resetPassword(w http.ResponseWriter, r *http.Request) {
+	var req resetPasswordRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	ct, contact, ok := h.validateContact(w, req.ContactType, req.Contact)
+	if !ok {
+		return
+	}
+	if len(req.Code) != 6 {
+		httpx.Error(w, http.StatusBadRequest, "validation_error", "Code must be 6 digits")
+		return
+	}
+	if len(req.NewPassword) < minPasswordLen {
+		httpx.Error(w, http.StatusBadRequest, "validation_error", "Password must be at least 6 characters")
+		return
+	}
+
+	if err := h.svc.ResetPassword(r.Context(), ResetPasswordInput{
+		Type: ct, Contact: contact, Code: req.Code, NewPassword: req.NewPassword,
+	}); err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, messageResponse{Message: "Your password has been updated. Please log in."})
+}
+
 // me returns the authenticated caller's id (proves the access token works).
 func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 	id, ok := UserIDFromContext(r.Context())
@@ -291,6 +389,8 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 		httpx.Error(w, http.StatusBadRequest, "validation_error", "Password must be at least 6 characters")
 	case errors.Is(err, ErrInvalidCredentials):
 		httpx.Error(w, http.StatusUnauthorized, "invalid_credentials", "Incorrect email/phone or password.")
+	case errors.Is(err, ErrWrongPassword):
+		httpx.Error(w, http.StatusBadRequest, "wrong_password", "Your current password is incorrect.")
 	case errors.Is(err, ErrNotVerified):
 		httpx.Error(w, http.StatusForbidden, "account_not_verified", "Please verify your account before logging in.")
 	case errors.Is(err, ErrInvalidToken):
