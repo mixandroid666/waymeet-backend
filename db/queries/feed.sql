@@ -6,8 +6,8 @@ RETURNING id, author_id, body, created_at;
 -- name: CreatePostWithMeta :one
 -- Create a post with a caller-supplied id (so media files can be written under
 -- it before the row is committed) and the denormalized media/location flags.
-INSERT INTO posts (id, author_id, body, media_count, has_location)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO posts (id, author_id, body, media_count, has_location, aspect_ratio)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, author_id, body, created_at;
 
 -- name: AddPostImage :exec
@@ -35,6 +35,7 @@ SELECT
     u.avatar_url   AS author_avatar_url,
     p.body,
     p.created_at,
+    p.aspect_ratio,
     (SELECT count(*) FROM post_likes l WHERE l.post_id = p.id)  AS like_count,
     (SELECT count(*) FROM comments c   WHERE c.post_id = p.id)  AS comment_count,
     EXISTS (
@@ -69,6 +70,7 @@ SELECT
     u.avatar_url   AS author_avatar_url,
     p.body,
     p.created_at,
+    p.aspect_ratio,
     (SELECT count(*) FROM post_likes l WHERE l.post_id = p.id)  AS like_count,
     (SELECT count(*) FROM comments c   WHERE c.post_id = p.id)  AS comment_count,
     EXISTS (
@@ -171,6 +173,7 @@ SELECT
     u.avatar_url   AS author_avatar_url,
     p.body,
     p.created_at,
+    p.aspect_ratio,
     (SELECT count(*) FROM post_likes l WHERE l.post_id = p.id)  AS like_count,
     (SELECT count(*) FROM comments c   WHERE c.post_id = p.id)  AS comment_count,
     EXISTS (

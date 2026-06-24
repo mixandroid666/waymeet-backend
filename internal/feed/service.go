@@ -58,6 +58,7 @@ type Post struct {
 	LikeCount       int64
 	CommentCount    int64
 	LikedByViewer   bool
+	AspectRatio     float64       // width/height for uniform carousel sizing
 	Media           []PostMedia   // all media in global upload order
 	Location        *PostLocation // nil when the post has no location
 }
@@ -159,6 +160,7 @@ func (s *Service) HomeFeed(ctx context.Context, viewerID string, limit, offset i
 				LikeCount:       r.LikeCount,
 				CommentCount:    r.CommentCount,
 				LikedByViewer:   r.LikedByViewer,
+				AspectRatio:     r.AspectRatio,
 				Media:           parseMediaItems(r.MediaItems),
 				Location:        locationOf(r.LocLatitude, r.LocLongitude, r.LocName),
 			})
@@ -189,6 +191,7 @@ func (s *Service) HomeFeed(ctx context.Context, viewerID string, limit, offset i
 				LikeCount:       r.LikeCount,
 				CommentCount:    r.CommentCount,
 				LikedByViewer:   r.LikedByViewer,
+				AspectRatio:     r.AspectRatio,
 				Media:           parseMediaItems(r.MediaItems),
 				Location:        locationOf(r.LocLatitude, r.LocLongitude, r.LocName),
 			})
@@ -274,6 +277,7 @@ func (s *Service) UserPosts(ctx context.Context, authorID, viewerID string, limi
 			LikeCount:       r.LikeCount,
 			CommentCount:    r.CommentCount,
 			LikedByViewer:   r.LikedByViewer,
+			AspectRatio:     r.AspectRatio,
 			Media:           parseMediaItems(r.MediaItems),
 			Location:        locationOf(r.LocLatitude, r.LocLongitude, r.LocName),
 		})

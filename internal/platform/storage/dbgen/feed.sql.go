@@ -158,8 +158,8 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (CreateP
 }
 
 const createPostWithMeta = `-- name: CreatePostWithMeta :one
-INSERT INTO posts (id, author_id, body, media_count, has_location)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO posts (id, author_id, body, media_count, has_location, aspect_ratio)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, author_id, body, created_at
 `
 
@@ -169,6 +169,7 @@ type CreatePostWithMetaParams struct {
 	Body        string      `json:"body"`
 	MediaCount  int16       `json:"media_count"`
 	HasLocation bool        `json:"has_location"`
+	AspectRatio float64     `json:"aspect_ratio"`
 }
 
 type CreatePostWithMetaRow struct {
@@ -187,6 +188,7 @@ func (q *Queries) CreatePostWithMeta(ctx context.Context, arg CreatePostWithMeta
 		arg.Body,
 		arg.MediaCount,
 		arg.HasLocation,
+		arg.AspectRatio,
 	)
 	var i CreatePostWithMetaRow
 	err := row.Scan(
@@ -409,6 +411,7 @@ type ListCommentsRow struct {
 	AuthorAvatarUrl *string            `json:"author_avatar_url"`
 	Body            string             `json:"body"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	AspectRatio     float64            `json:"aspect_ratio"`
 	LikeCount       int64              `json:"like_count"`
 	LikedByViewer   bool               `json:"liked_by_viewer"`
 }
@@ -435,6 +438,7 @@ func (q *Queries) ListComments(ctx context.Context, arg ListCommentsParams) ([]L
 			&i.AuthorAvatarUrl,
 			&i.Body,
 			&i.CreatedAt,
+			&i.AspectRatio,
 			&i.LikeCount,
 			&i.LikedByViewer,
 		); err != nil {
@@ -456,6 +460,7 @@ SELECT
     u.avatar_url   AS author_avatar_url,
     p.body,
     p.created_at,
+    p.aspect_ratio,
     (SELECT count(*) FROM post_likes l WHERE l.post_id = p.id)  AS like_count,
     (SELECT count(*) FROM comments c   WHERE c.post_id = p.id)  AS comment_count,
     EXISTS (
@@ -490,6 +495,7 @@ type ListGlobalTimelineRow struct {
 	AuthorAvatarUrl *string            `json:"author_avatar_url"`
 	Body            string             `json:"body"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	AspectRatio     float64            `json:"aspect_ratio"`
 	LikeCount       int64              `json:"like_count"`
 	CommentCount    int64              `json:"comment_count"`
 	LikedByViewer   bool               `json:"liked_by_viewer"`
@@ -517,6 +523,7 @@ func (q *Queries) ListGlobalTimeline(ctx context.Context, arg ListGlobalTimeline
 			&i.AuthorAvatarUrl,
 			&i.Body,
 			&i.CreatedAt,
+			&i.AspectRatio,
 			&i.LikeCount,
 			&i.CommentCount,
 			&i.LikedByViewer,
@@ -543,6 +550,7 @@ SELECT
     u.avatar_url   AS author_avatar_url,
     p.body,
     p.created_at,
+    p.aspect_ratio,
     (SELECT count(*) FROM post_likes l WHERE l.post_id = p.id)  AS like_count,
     (SELECT count(*) FROM comments c   WHERE c.post_id = p.id)  AS comment_count,
     EXISTS (
@@ -581,6 +589,7 @@ type ListHomeTimelineRow struct {
 	AuthorAvatarUrl *string            `json:"author_avatar_url"`
 	Body            string             `json:"body"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	AspectRatio     float64            `json:"aspect_ratio"`
 	LikeCount       int64              `json:"like_count"`
 	CommentCount    int64              `json:"comment_count"`
 	LikedByViewer   bool               `json:"liked_by_viewer"`
@@ -609,6 +618,7 @@ func (q *Queries) ListHomeTimeline(ctx context.Context, arg ListHomeTimelinePara
 			&i.AuthorAvatarUrl,
 			&i.Body,
 			&i.CreatedAt,
+			&i.AspectRatio,
 			&i.LikeCount,
 			&i.CommentCount,
 			&i.LikedByViewer,
@@ -635,6 +645,7 @@ SELECT
     u.avatar_url   AS author_avatar_url,
     p.body,
     p.created_at,
+    p.aspect_ratio,
     (SELECT count(*) FROM post_likes l WHERE l.post_id = p.id)  AS like_count,
     (SELECT count(*) FROM comments c   WHERE c.post_id = p.id)  AS comment_count,
     EXISTS (
@@ -671,6 +682,7 @@ type ListUserPostsRow struct {
 	AuthorAvatarUrl *string            `json:"author_avatar_url"`
 	Body            string             `json:"body"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	AspectRatio     float64            `json:"aspect_ratio"`
 	LikeCount       int64              `json:"like_count"`
 	CommentCount    int64              `json:"comment_count"`
 	LikedByViewer   bool               `json:"liked_by_viewer"`
@@ -702,6 +714,7 @@ func (q *Queries) ListUserPosts(ctx context.Context, arg ListUserPostsParams) ([
 			&i.AuthorAvatarUrl,
 			&i.Body,
 			&i.CreatedAt,
+			&i.AspectRatio,
 			&i.LikeCount,
 			&i.CommentCount,
 			&i.LikedByViewer,

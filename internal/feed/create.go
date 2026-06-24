@@ -19,6 +19,13 @@ import (
 const (
 	MaxCaptionLen = 2000
 	MaxMedia      = 8 // total images + videos per post
+
+	// Display aspect-ratio (width/height) bounds, matching Instagram's
+	// supported range: 4:5 portrait (0.8) to 1.91:1 landscape. A post's ratio
+	// is anchored to its first image and clamped here.
+	minAspectRatio     = 0.8
+	maxAspectRatio     = 1.91
+	defaultAspectRatio = 1.0 // square; used when none supplied (e.g. text/video-only)
 )
 
 // Domain errors for post creation. The handler maps these to HTTP status codes.
@@ -46,9 +53,25 @@ type NewLocation struct {
 
 // CreatePostInput is the validated, decoded create-post request.
 type CreatePostInput struct {
-	Caption  string
-	Media    []NewMedia // images and videos in global upload order
-	Location *NewLocation
+	Caption     string
+	Media       []NewMedia // images and videos in global upload order
+	Location    *NewLocation
+	AspectRatio float64 // width/height of the first image; 0 = use default
+}
+
+// clampAspectRatio bounds a client-supplied ratio to the supported range,
+// falling back to square when it is missing or non-positive.
+func clampAspectRatio(r float64) float64 {
+	if r <= 0 {
+		return defaultAspectRatio
+	}
+	if r < minAspectRatio {
+		return minAspectRatio
+	}
+	if r > maxAspectRatio {
+		return maxAspectRatio
+	}
+	return r
 }
 
 // CreatePost validates the input, stores any media, and persists the post,
@@ -81,6 +104,8 @@ func (s *Service) CreatePost(ctx context.Context, authorID string, in CreatePost
 	if !s.postLimiter.allow(authorID) {
 		return nil, ErrRateLimited
 	}
+
+	aspectRatio := clampAspectRatio(in.AspectRatio)
 
 	postID, err := newUUID()
 	if err != nil {
@@ -117,6 +142,7 @@ func (s *Service) CreatePost(ctx context.Context, authorID string, in CreatePost
 		Body:        caption,
 		MediaCount:  int16(len(in.Media)),
 		HasLocation: in.Location != nil,
+		AspectRatio: aspectRatio,
 	})
 	if err != nil {
 		cleanup()
@@ -164,7 +190,7 @@ func (s *Service) CreatePost(ctx context.Context, authorID string, in CreatePost
 		return nil, err
 	}
 
-	return s.assembleCreatedPost(ctx, idStr, authorID, author, caption, row.CreatedAt.Time, media, loc), nil
+	return s.assembleCreatedPost(ctx, idStr, authorID, author, caption, row.CreatedAt.Time, aspectRatio, media, loc), nil
 }
 
 // storeMedia writes each upload to the media store in global order and returns
@@ -191,6 +217,7 @@ func (s *Service) assembleCreatedPost(
 	author pgtype.UUID,
 	caption string,
 	createdAt time.Time,
+	aspectRatio float64,
 	media []PostMedia,
 	loc *PostLocation,
 ) *Post {
@@ -210,6 +237,7 @@ func (s *Service) assembleCreatedPost(
 		LikeCount:       0,
 		CommentCount:    0,
 		LikedByViewer:   false,
+		AspectRatio:     aspectRatio,
 		Media:           media,
 		Location:        loc,
 	}

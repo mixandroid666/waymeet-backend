@@ -95,6 +95,7 @@ type postDTO struct {
 	LikeCount     int64        `json:"like_count"`
 	CommentCount  int64        `json:"comment_count"`
 	LikedByViewer bool         `json:"liked_by_viewer"`
+	AspectRatio   float64      `json:"aspect_ratio"`
 	Media         []mediaDTO   `json:"media"`
 	Location      *locationDTO `json:"location"`
 }
@@ -365,6 +366,15 @@ func (h *Handler) parseCreateInput(w http.ResponseWriter, r *http.Request) (*Cre
 		return nil, false
 	}
 	in.Location = loc
+
+	// Optional: the post's display aspect ratio (width/height), computed by the
+	// client from the first image. Parsed leniently — the service clamps it and
+	// falls back to a default when absent or invalid.
+	if raw := strings.TrimSpace(r.FormValue("aspect_ratio")); raw != "" {
+		if ar, err := strconv.ParseFloat(raw, 64); err == nil {
+			in.AspectRatio = ar
+		}
+	}
 
 	if len([]rune(strings.TrimSpace(in.Caption))) > MaxCaptionLen {
 		httpx.Error(w, http.StatusBadRequest, "caption_too_long",
@@ -705,6 +715,7 @@ func postDTOOf(p Post) postDTO {
 		LikeCount:     p.LikeCount,
 		CommentCount:  p.CommentCount,
 		LikedByViewer: p.LikedByViewer,
+		AspectRatio:   p.AspectRatio,
 		Media:         media,
 		Location:      loc,
 	}
