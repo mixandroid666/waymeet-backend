@@ -1,0 +1,16 @@
+# Caddy auto-provisions Let's Encrypt TLS for these domains (HTTP-01 challenge,
+# so ports 80 + 443 must be open and the domains must resolve to this box).
+{
+	email {$ACME_EMAIL}
+}
+
+# API: https://api.<ip>.sslip.io  ->  Go server on :8080
+{$API_DOMAIN} {
+	reverse_proxy api:8080
+}
+
+# Media: https://media.<ip>.sslip.io  ->  MinIO S3 API on :9000
+# Presigned upload/download URLs are signed against this hostname.
+{$MEDIA_DOMAIN} {
+	reverse_proxy minio:9000
+}

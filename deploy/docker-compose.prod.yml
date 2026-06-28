@@ -1,0 +1,147 @@
+# Production-ish stack for a single 2 GB cloud VM (DigitalOcean Droplet etc.).
+# Everything runs on one box; only Caddy publishes ports (80/443).
+#
+#   docker compose -f deploy/docker-compose.prod.yml --project-directory . --env-file deploy/.env.prod up -d --build
+#
+# Run from the waymeet-backend/ directory. --project-directory . pins all
+# relative paths (build context, volumes, env_file) to the repo root rather
+# than to this file's deploy/ folder.
+name: waymeet
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # Published only to the server's loopback so you can reach it via an SSH
+    # tunnel (ssh -L 5433:localhost:5432). NOT internet-exposed: the 127.0.0.1
+    # bind keeps it off the public interface, and ufw blocks 5432 anyway.
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Persist + cap memory so Redis can't OOM the 4 GB box.
+    command: redis-server --save 60 1 --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
+      # Make MinIO sign/redirect against the public URL so presigned links work.
+      MINIO_SERVER_URL: ${S3_ENDPOINT}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-shot: create the media bucket and make it readable, then exit.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${S3_ACCESS_KEY} ${S3_SECRET_KEY} &&
+      mc mb --ignore-existing local/${S3_BUCKET} &&
+      mc anonymous set download local/${S3_BUCKET} &&
+      echo 'bucket ready';
+      "
+    restart: "no"
+
+  # One-shot: apply DB migrations, then exit. Re-runs are safe (no-op if current).
+  migrate:
+    image: migrate/migrate:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./db/migrations:/migrations:ro
+    command:
+      ["-path", "/migrations", "-database", "${DATABASE_URL}", "up"]
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        CMD: api
+    restart: unless-stopped
+    env_file: deploy/.env.prod
+    volumes:
+      - ./deploy/secrets:/secrets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    # Exposed to the internet only through Caddy (service name "api", port 8080).
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        CMD: worker
+    restart: unless-stopped
+    env_file: deploy/.env.prod
+    volumes:
+      - ./deploy/secrets:/secrets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL}
+      API_DOMAIN: ${API_DOMAIN}
+      MEDIA_DOMAIN: ${MEDIA_DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on:
+      - api
+      - minio
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  caddydata:
+  caddyconfig:

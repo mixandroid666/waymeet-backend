@@ -1,0 +1,40 @@
+# Cloud-init "user data" for a fresh Ubuntu 24.04 server (DigitalOcean Droplet
+# or Hetzner Cloud). Paste into the "user data" / "Cloud config" box at create
+# time. Installs Docker, adds 2 GB swap (headroom for Go image builds on a 2 GB
+# box), hardens SSH, and opens the firewall for web traffic.
+#
+# Replace the SSH key below with YOUR public key (cat ~/.ssh/id_ed25519.pub).
+#cloud-config
+package_update: true
+package_upgrade: true
+
+users:
+  - name: deploy
+    groups: [docker, sudo]
+    shell: /bin/bash
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGMC3eumNJAYeHE/LS81PSwWSq/CnonKKpVd6CByCo8B ittipon.kankaew@gmail.com
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/99-hardening.conf
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin prohibit-password
+
+runcmd:
+  # 2 GB swap so `docker build` of the Go images doesn't OOM on a 2 GB Droplet.
+  - fallocate -l 2G /swapfile
+  - chmod 600 /swapfile
+  - mkswap /swapfile
+  - swapon /swapfile
+  - sh -c 'echo "/swapfile none swap sw 0 0" >> /etc/fstab'
+  # Docker engine + compose plugin (official convenience script).
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable --now docker
+  # Firewall: allow SSH + HTTP + HTTPS only.
+  - ufw allow OpenSSH
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable
+  - systemctl restart ssh

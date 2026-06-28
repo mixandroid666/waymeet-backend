@@ -1,0 +1,47 @@
+# Deploy waymeet-backend to the DigitalOcean Droplet on every push to main.
+#
+# The build happens ON THE DROPLET (docker compose --build), so the only thing
+# this workflow needs is SSH access. It pulls the latest code on the server and
+# rebuilds/restarts the stack. The `migrate` one-shot in the compose file applies
+# any new DB migrations automatically.
+#
+# Required GitHub repo secrets (Settings -> Secrets and variables -> Actions):
+#   DROPLET_HOST     the Droplet's public IP            (e.g. 159.223.46.94)
+#   DROPLET_USER     the SSH user                       (deploy)
+#   DROPLET_SSH_KEY  PRIVATE key whose public half is in the Droplet's
+#                    ~/.ssh/authorized_keys for DROPLET_USER (a CI-only keypair)
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # lets you trigger a deploy manually from the Actions tab
+
+# Never run two deploys at once; cancel an in-flight one if a newer push lands.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            cd ~/waymeet-backend
+            echo "==> Pulling latest code"
+            git fetch --all --prune
+            git reset --hard origin/main
+            echo "==> Building & restarting the stack (runs migrations via the migrate one-shot)"
+            docker compose -f deploy/docker-compose.prod.yml --project-directory . \
+              --env-file deploy/.env.prod up -d --build
+            echo "==> Pruning dangling images"
+            docker image prune -f
+            echo "==> Done"

@@ -1,0 +1,16 @@
+# Keep the build context small and secrets out of image layers.
+*.exe
+*.exe~
+*.log
+bin/
+build/
+.git/
+.env
+.env.*
+deploy/.env.prod
+deploy/secrets/
+*firebase-adminsdk*.json
+*.md
+docs/
+docker-compose.yml
+deploy/
