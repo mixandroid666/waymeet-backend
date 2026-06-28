@@ -8,6 +8,12 @@
 *.local
 # Firebase Admin SDK service-account key (server credential — never commit)
 *firebase-adminsdk*.json
+# Live production env + mounted secrets live ONLY on the server, never in git.
+deploy/.env.prod
+deploy/secrets/
+
+# Logs
+*.log
 
 # Go
 /vendor/
